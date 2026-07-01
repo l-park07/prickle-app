@@ -1,9 +1,10 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import AppText from "../components/AppText";
 
 export default function Index() {
   return (
     <View style={styles.container}>
-      <Text>Hello Prickle World</Text>
+      <AppText>is this font being used?</AppText>
     </View>
   );
 }
