@@ -1,13 +1,11 @@
-import { OpenSans_400Regular, OpenSans_700Bold, useFonts } from '@expo-google-fonts/open-sans'; //improts OpenSans font used
+import { useFonts } from '@expo-google-fonts/open-sans';
 import { SplashScreen, Stack } from "expo-router";
 import { useEffect } from 'react';
+import { fontAssets } from './theme';
 
 export default function RootLayout() {
   // links fonts to string names
-  const [fontsLoaded, fontError] = useFonts({
-    'OpenSans-Regular': OpenSans_400Regular,
-    'OpenSans-Bold': OpenSans_700Bold,
-  });
+  const [fontsLoaded, fontError] = useFonts(fontAssets);
 
   useEffect(() => { // when app is loading, runs effect of splashscreen
     if (fontsLoaded || fontError) {
