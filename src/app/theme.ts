@@ -53,8 +53,8 @@ export const colors = {
 
   // Tab bar
   tabActive: palette.terracotta,
-  tabInactive: palette.greyGreen,
-  tabBarBg: palette.green,
+  tabInactive: palette.offWhite,
+  tabBarBg: palette.greyGreen,
 
   // Status (kept earthy on purpose — see severity note below)
   success: palette.green,
