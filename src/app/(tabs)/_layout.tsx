@@ -56,7 +56,7 @@ export default function TabLayout() {
           options={{
             title: 'Triggers',
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? 'flash' : 'flash-outline'} size={ICON_SIZE} color={color} />
+              <Ionicons name={focused ? 'disc' : 'disc-outline'} size={ICON_SIZE} color={color} />
             ),
           }}
         />
