@@ -59,6 +59,7 @@ export const colors = {
   // Status (kept earthy on purpose — see severity note below)
   success: palette.green,
   info: palette.greyGreen,
+  error: palette.crimson, // form validation / auth error text
 } as const;
 
 // 3) SEVERITY SCALE (1–5) for site scores & the mood/stress slider.

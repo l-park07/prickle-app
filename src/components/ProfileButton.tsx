@@ -4,43 +4,32 @@ import { Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../app/theme';
 
-// Mirrors expo-router's internal TABBAR_HEIGHT_UIKIT (see
-// build/react-navigation/bottom-tabs/views/BottomTabBar.js). The tab bar's
-// real rendered height is this plus the bottom safe-area inset, since our
-// tabBarStyle never sets an explicit height. Update this if it ever does.
-const TAB_BAR_BASE_HEIGHT = -15;
-const FAB_SIZE = 60;
+const BUTTON_SIZE = 44;
 
-/**
- * Floating "Log" entry point, positioned above the tab bar on the right
- * instead of living inside the tab bar row.
- */
-export function LogFab() {
+/** Entry point to the Profile screen, positioned top-right on Home. */
+export function ProfileButton() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   return (
     <Pressable
-      onPress={() => router.push('/log')}
+      onPress={() => router.push('/profile')}
       accessibilityRole="button"
-      accessibilityLabel="Log"
+      accessibilityLabel="Profile"
       hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
-      style={[
-        styles.fab,
-        { bottom: TAB_BAR_BASE_HEIGHT + insets.bottom + spacing.sm },
-      ]}
+      style={[styles.button, { top: insets.top + spacing.sm }]}
     >
-      <Ionicons name="add" size={32} color={colors.onPrimary} />
+      <Ionicons name="person-outline" size={24} color={colors.onPrimary} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  fab: {
+  button: {
     position: 'absolute',
     right: spacing.md,
-    width: FAB_SIZE,
-    height: FAB_SIZE,
+    width: BUTTON_SIZE,
+    height: BUTTON_SIZE,
     borderRadius: radius.pill,
     backgroundColor: colors.primary,
     alignItems: 'center',

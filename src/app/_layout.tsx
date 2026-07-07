@@ -1,25 +1,40 @@
 import { useFonts } from '@expo-google-fonts/open-sans';
 import { SplashScreen, Stack } from "expo-router";
 import { useEffect } from 'react';
-import { AuthProvider } from '../context/AuthProvider';
+import { AuthProvider, useAuth } from '../context/AuthProvider';
 import { fontAssets } from './theme';
 
 export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootNavigator />
+    </AuthProvider>
+  );
+}
+
+function RootNavigator() {
   // links fonts to string names
   const [fontsLoaded, fontError] = useFonts(fontAssets);
+  const { user, initializing } = useAuth();
+  const ready = (fontsLoaded || !!fontError) && !initializing;
 
   useEffect(() => { // when app is loading, runs effect of splashscreen
-    if (fontsLoaded || fontError) {
+    if (ready) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError]);
+  }, [ready]);
 
-  if (!fontsLoaded && !fontError) {
+  if (!ready) {
     return null;
   }
   return (
-    <AuthProvider>
-      <Stack screenOptions={{headerShown: false}}/>
-    </AuthProvider>
+    <Stack screenOptions={{headerShown: false}}>
+      <Stack.Protected guard={!!user}>
+        <Stack.Screen name="(tabs)" />
+      </Stack.Protected>
+      <Stack.Protected guard={!user}>
+        <Stack.Screen name="(auth)" />
+      </Stack.Protected>
+    </Stack>
   );
 }

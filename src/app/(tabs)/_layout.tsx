@@ -2,7 +2,6 @@ import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { Tabs } from 'expo-router/js-tabs';
 import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { LogFab } from '../../components/LogFab';
 import { colors, fontFamily } from '../theme';
 
 const ICON_SIZE = 24;
@@ -42,6 +41,7 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen name="log" options={{ href: null }} />
+        <Tabs.Screen name="profile" options={{ href: null }} />
         <Tabs.Screen
           name="insights"
           options={{
@@ -70,7 +70,6 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-      <LogFab />
     </SafeAreaProvider>
   );
 }
