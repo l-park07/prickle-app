@@ -66,6 +66,9 @@ export default function Profile() {
             labelColor={colors.error}
             showChevron={false}
           />
+          {__DEV__ ? (
+            <SettingsRow label="Debug" onPress={() => router.push('/dev-debug')} />
+          ) : null}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

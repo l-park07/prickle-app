@@ -7,6 +7,9 @@
     "icon": "./assets/images/icon.png",
     "scheme": "prickleapp",
     "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.lgpark07.prickleapp"
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#eed9bd",
@@ -31,7 +34,8 @@
           "imageWidth": 180
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,

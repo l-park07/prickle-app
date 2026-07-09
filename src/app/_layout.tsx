@@ -1,7 +1,8 @@
 import { useFonts } from '@expo-google-fonts/open-sans';
 import { SplashScreen, Stack } from "expo-router";
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from '../context/AuthProvider';
+import { dbReady } from '../lib/db';
 import { fontAssets } from './theme';
 
 export default function RootLayout() {
@@ -16,7 +17,12 @@ function RootNavigator() {
   // links fonts to string names
   const [fontsLoaded, fontError] = useFonts(fontAssets);
   const { user, initializing } = useAuth();
-  const ready = (fontsLoaded || !!fontError) && !initializing;
+  const [dbInitialized, setDbInitialized] = useState(false);
+  const ready = (fontsLoaded || !!fontError) && !initializing && dbInitialized;
+
+  useEffect(() => {
+    dbReady.then(() => setDbInitialized(true)).catch(console.error);
+  }, []);
 
   useEffect(() => { // when app is loading, runs effect of splashscreen
     if (ready) {
