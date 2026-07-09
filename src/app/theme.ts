@@ -74,6 +74,13 @@ export const severityScale: Record<1 | 2 | 3 | 4 | 5, string> = {
   5: palette.terracotta,
 };
 
+// "Clear" (a score of 0) is a distinct recorded state, not a sixth severity
+// step — it gets its own brand-green color, separate from the severity ramp.
+export const clearColor = palette.green;
+
+// "Not recorded" (no score at all) — muted, so it reads as absence, not data.
+export const notRecordedColor = palette.inkSoft;
+
 // 4) TYPOGRAPHY — this is where Open Sans lives, so <AppText> stops hardcoding it.
 //    Every key here must have a matching entry in `fontAssets` below, or it'll
 //    silently fall back to the system font when unregistered.
@@ -112,6 +119,8 @@ export const theme = {
   palette,
   colors,
   severityScale,
+  clearColor,
+  notRecordedColor,
   fontFamily,
   fontAssets,
   typography,

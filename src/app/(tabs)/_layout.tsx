@@ -40,7 +40,6 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen name="log" options={{ href: null }} />
         <Tabs.Screen name="profile" options={{ href: null }} />
         <Tabs.Screen
           name="insights"

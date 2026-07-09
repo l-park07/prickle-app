@@ -21,7 +21,9 @@ export function LogFab() {
 
   return (
     <Pressable
-      onPress={() => router.push('/log')}
+      onPress={() =>
+        router.push({ pathname: '/log', params: { date: new Date().toISOString().slice(0, 10) } })
+      }
       accessibilityRole="button"
       accessibilityLabel="Log"
       hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { AppText } from '../src/components/AppText';
 import { PrimaryButton } from '../src/components/PrimaryButton';
+import { SeverityBar } from '../src/components/SeverityBar';
+import { SeverityInput } from '../src/components/SeverityInput';
 import { TextField } from '../src/components/TextField';
 import { useActiveUserId } from '../src/hooks/useActiveUserId';
 import { colors, spacing } from '../src/app/theme';
@@ -30,6 +32,8 @@ export function DebugScreen() {
   const [date, setDate] = useState('2026-01-02');
   const [seedResult, setSeedResult] = useState<string | null>(null);
   const [dump, setDump] = useState('');
+  // TEMP: SeverityBar/SeverityInput preview — no real screen mounts these yet.
+  const [previewValue, setPreviewValue] = useState(3);
 
   useEffect(() => {
     if (!activeUserId) {
@@ -99,6 +103,14 @@ export function DebugScreen() {
       <AppText variant="caption" style={styles.dump}>
         {dump}
       </AppText>
+
+      <AppText variant="title">SeverityBar preview</AppText>
+      <SeverityBar score={null} />
+      <SeverityBar score={0} />
+      <SeverityBar score={previewValue} />
+
+      <AppText variant="title">SeverityInput preview</AppText>
+      <SeverityInput value={previewValue} onChange={setPreviewValue} />
     </ScrollView>
   );
 }

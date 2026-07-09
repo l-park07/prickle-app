@@ -282,6 +282,34 @@ export async function getDayEntry(
 }
 
 /**
+ * The most recent recorded (non-null) score for a site strictly before a
+ * given date — used to default a SeverityInput's starting position to
+ * "whatever this site was scored last time," rather than an arbitrary value.
+ */
+export async function getPreviousSiteScore(
+  db: SQLiteDatabase,
+  userId: string,
+  siteId: string,
+  beforeDate: string
+): Promise<number | null> {
+  const row = await db.getFirstAsync<{ score: number | null }>(
+    `SELECT ss.score
+       FROM site_scores ss
+       JOIN daily_logs d ON d.id = ss.log_id
+      WHERE d.user_id = ?
+        AND ss.site_id = ?
+        AND d.log_date < ?
+        AND d.deleted_at IS NULL
+        AND ss.deleted_at IS NULL
+        AND ss.score IS NOT NULL
+      ORDER BY d.log_date DESC
+      LIMIT 1`,
+    [userId, siteId, beforeDate]
+  );
+  return row?.score ?? null;
+}
+
+/**
  * OPTIONAL: pivot the tidy series into the wide { date, Neck, Elbows, stress }
  * shape — only if a specific chart library wants columns instead of rows.
  * This is also the exact shape your PCP/derm export table wants.
