@@ -30,6 +30,11 @@ export const palette = {
   white: '#ffffff',
   ink: '#3b2f2a', // warm near-black — primary body text
   inkSoft: '#7a6f68', // muted clay-grey — secondary text
+  sage: '#6f8f6a', // score clear
+  paleGreen: '#c3d6a3', // score 1
+  oliveGreen: '#a9bd7f', // score 2
+  softOchre: '#d9ab5f', //score 3
+  clay: '#c8a99a', //score 4
 } as const;
 
 // 2) SEMANTIC COLORS — what things ARE, not what color they happen to be.
@@ -62,24 +67,35 @@ export const colors = {
   error: palette.crimson, // form validation / auth error text
 } as const;
 
+// Dimmed backdrop behind modals/sheets — the app's ink, translucent, rather
+// than a generic black scrim.
+export const overlay = 'rgba(59, 47, 42, 0.45)';
+
 // 3) SEVERITY SCALE (1–5) for site scores & the mood/stress slider.
 //    Deliberately warm rather than a green→red "good/bad" ramp. Crimson is
 //    reserved for UI accents, NOT for "5", so a high score never reads as an
 //    alarm or a failure — that matters for Prickle's validating tone.
 export const severityScale: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: palette.milkyGreen,
-  2: palette.lightGreen,
-  3: palette.sand,
+  1: palette.paleGreen,
+  2: palette.oliveGreen,
+  3: palette.softOchre,
   4: palette.coral,
   5: palette.terracotta,
 };
 
 // "Clear" (a score of 0) is a distinct recorded state, not a sixth severity
 // step — it gets its own brand-green color, separate from the severity ramp.
-export const clearColor = palette.green;
+export const clearColor = palette.sage;
 
 // "Not recorded" (no score at all) — muted, so it reads as absence, not data.
+// This is the Today tab's SeverityBar concept; the calendar's "logged, no
+// site scored" state uses the separate notScoredBorder below.
 export const notRecordedColor = palette.inkSoft;
+
+// Calendar-only: a day was logged but no individual site got a score that
+// day (e.g. only mood was recorded). Dashed border, not a fill, so it never
+// reads as "clear" or as a severity value.
+export const notScoredBorder = palette.clay;
 
 // 4) TYPOGRAPHY — this is where Open Sans lives, so <AppText> stops hardcoding it.
 //    Every key here must have a matching entry in `fontAssets` below, or it'll
@@ -118,9 +134,11 @@ export const radius = { sm: 8, md: 12, lg: 20, pill: 999 } as const;
 export const theme = {
   palette,
   colors,
+  overlay,
   severityScale,
   clearColor,
   notRecordedColor,
+  notScoredBorder,
   fontFamily,
   fontAssets,
   typography,

@@ -1,35 +1,27 @@
-import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { AppText } from '../../components/AppText';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { DailyCactusMessage } from '../../components/DailyCactusMessage';
+import { HomeHeader } from '../../components/HomeHeader';
 import { LogFab } from '../../components/LogFab';
-import { PlaceholderScreen } from '../../components/PlaceholderScreen';
+import { MonthCalendar } from '../../components/MonthCalendar';
+import { NextAssessmentNotice } from '../../components/NextAssessmentNotice';
 import { ProfileButton } from '../../components/ProfileButton';
-import { useActiveUserId } from '../../hooks/useActiveUserId';
-import { getDailyMessageAlternating } from '../../../content/getDailyMessage';
-import type { PrickleMessage } from '../../../content/messages';
-import { spacing } from '../theme';
+import { colors, spacing } from '../theme';
 
 export default function Home() {
-  const activeUserId = useActiveUserId();
-  const [message, setMessage] = useState<PrickleMessage | null>(null);
-
-  // Computed once per active identity, not on every re-render — a fresh
-  // Date().toISOString() on every render would otherwise pick a new message
-  // right around midnight, or whenever something else re-renders Home.
-  useEffect(() => {
-    if (!activeUserId) return;
-    const todayISO = new Date().toISOString().slice(0, 10);
-    setMessage(getDailyMessageAlternating(activeUserId, todayISO));
-  }, [activeUserId]);
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.container}>
-      {message ? (
-        <View style={styles.message}>
-          <AppText variant="body">{message.text}</AppText>
-        </View>
-      ) : null}
-      <PlaceholderScreen title="Home" />
+      <View style={styles.top}>
+        <HomeHeader />
+        <MonthCalendar />
+        <NextAssessmentNotice />
+      </View>
+      <View style={styles.spacer} />
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.xxl + spacing.sm }]}>
+        <DailyCactusMessage />
+      </View>
       <LogFab />
       <ProfileButton />
     </View>
@@ -39,8 +31,16 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
-  message: {
-    padding: spacing.lg,
+  top: {
+    gap: spacing.xl,
+  },
+  spacer: {
+    flex: 1,
+    minHeight: spacing.xl,
+  },
+  bottom: {
+    gap: spacing.lg,
   },
 });

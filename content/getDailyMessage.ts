@@ -10,7 +10,7 @@
 import { MESSAGES, PrickleMessage, MessageKind } from './messages';
 
 /** Small, stable string hash (FNV-1a). Same input -> same number, always. */
-function hash(input: string): number {
+export function hash(input: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < input.length; i++) {
     h ^= input.charCodeAt(i);
