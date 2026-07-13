@@ -41,6 +41,7 @@ function RootNavigator() {
       <Stack.Protected guard={!!user}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="log" options={{ presentation: 'modal', headerShown: true, title: 'Log' }} />
+        <Stack.Screen name="weekly" options={{ headerShown: true, title: 'Weekly' }} />
         <Stack.Screen name="dev-debug" options={{ headerShown: true, title: 'Debug' }} />
       </Stack.Protected>
       <Stack.Protected guard={!user}>

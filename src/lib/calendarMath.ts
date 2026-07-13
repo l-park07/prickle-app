@@ -7,6 +7,29 @@ function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
 
+/** 'YYYY-MM-DD' -> local Date at midnight. */
+export function parseISODate(iso: string): Date {
+  const [year, month, day] = iso.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/** Date -> 'YYYY-MM-DD'. */
+export function toISODate(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** 'YYYY-MM-DD', shifted by N days (N may be negative). */
+export function shiftISODate(iso: string, days: number): string {
+  const date = parseISODate(iso);
+  date.setDate(date.getDate() + days);
+  return toISODate(date);
+}
+
+/** Today as 'YYYY-MM-DD', local time. */
+export function todayISO(): string {
+  return toISODate(new Date());
+}
+
 /** 5 -> "5th", 12 -> "12th", 22 -> "22nd" — 11-13 are always "th". */
 function ordinal(n: number): string {
   const rem100 = n % 100;

@@ -40,7 +40,7 @@ export function CalendarDay({ day, iso, worst, isToday, onPress }: CalendarDayPr
       accessibilityLabel={label}
       style={[styles.cell, isToday ? styles.today : null]}
     >
-      <SeverityCell worst={worst} style={styles.fill}>
+      <SeverityCell worst={worst} style={styles.fill} cornerRadius={CELL_CORNER_RADIUS}>
         <AppText variant="body" color={numeralColor}>
           {day}
         </AppText>
@@ -48,6 +48,10 @@ export function CalendarDay({ day, iso, worst, isToday, onPress }: CalendarDayPr
     </Pressable>
   );
 }
+
+// Bigger than the legend swatch's default (radius.sm) — at the grid cell's larger size,
+// radius.sm (or even radius.md) reads as nearly square, so this keeps the rounding visible.
+const CELL_CORNER_RADIUS = radius.sm;
 
 const styles = StyleSheet.create({
   cell: {
@@ -61,6 +65,6 @@ const styles = StyleSheet.create({
   today: {
     borderWidth: 2,
     borderColor: colors.accent,
-    borderRadius: radius.sm,
+    borderRadius: CELL_CORNER_RADIUS,
   },
 });

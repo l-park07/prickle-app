@@ -95,17 +95,19 @@ export function MonthCalendar() {
           ))}
         </View>
 
-        <View style={styles.footer}>
-          <Pressable
-            onPress={() => setLegendVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel="What the colors mean"
-            hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
-            style={styles.infoButton}
-          >
-            <Ionicons name="information-circle-outline" size={28} color={colors.textSecondary} />
-          </Pressable>
-        </View>
+        {/* The grid is always padded to 6 weeks (see getMonthGrid) so the card's height
+            never jitters between months, but no month ever has a real day in the last
+            column of the 6th row — so pinning the legend button to this corner never
+            overlaps a date. */}
+        <Pressable
+          onPress={() => setLegendVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="What the colors mean"
+          hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
+          style={styles.infoButton}
+        >
+          <Ionicons name="information-circle-outline" size={26} color={colors.textSecondary} />
+        </Pressable>
       </Card>
 
       <CalendarLegend visible={legendVisible} onClose={() => setLegendVisible(false)} />
@@ -145,14 +147,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: -spacing.md,
-  },
   infoButton: {
-    width: 44,
-    height: 44,
+    position: 'absolute',
+    right: spacing.md,
+    bottom: spacing.md,
+    width: 45,
+    height: 45,
     alignItems: 'center',
     justifyContent: 'center',
   },

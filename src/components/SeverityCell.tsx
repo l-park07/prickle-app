@@ -7,24 +7,29 @@ interface SeverityCellProps {
   worst: number | null | undefined;
   /** Caller controls outer sizing — flex+aspectRatio for a grid cell, a fixed width/height for a legend swatch. */
   style?: StyleProp<ViewStyle>;
+  /** Corner radius in px. Callers with bigger boxes (the grid) should pass a bigger value than the legend's default so the rounding reads the same proportionally. */
+  cornerRadius?: number;
   children?: ReactNode;
 }
 
 const INNER_RING_PADDING = 3;
-const INNER_RING_RADIUS = radius.sm - INNER_RING_PADDING;
 
 /**
  * Pure visual rendering of the four severity states — shared by CalendarDay
  * (grid cells) and CalendarLegend (swatches) so the two can never drift apart.
  */
-export function SeverityCell({ worst, style, children }: SeverityCellProps) {
+export function SeverityCell({ worst, style, cornerRadius = radius.sm, children }: SeverityCellProps) {
   if (worst === 0) {
     // All sites clear: filled + an inner ring. RN has no inset box-shadow, so
     // this is faked with a smaller bordered View nested inside the filled one
     // — the outer size (set by `style`) never changes, only what's drawn inside it.
     return (
-      <View style={[styles.day, styles.clearFill, style]}>
-        <View style={styles.innerRing}>{children}</View>
+      <View style={[styles.day, styles.clearFill, { borderRadius: cornerRadius }, style]}>
+        <View
+          style={[styles.innerRing, { borderRadius: Math.max(cornerRadius - INNER_RING_PADDING, 0) }]}
+        >
+          {children}
+        </View>
       </View>
     );
   }
@@ -34,7 +39,10 @@ export function SeverityCell({ worst, style, children }: SeverityCellProps) {
       style={[
         styles.day,
         worst === null ? styles.notScored : null,
-        typeof worst === 'number' ? { backgroundColor: severityScale[worst as 1 | 2 | 3 | 4 | 5] } : null,
+        {
+          borderRadius: cornerRadius,
+          ...(typeof worst === 'number' ? { backgroundColor: severityScale[worst as 1 | 2 | 3 | 4 | 5] } : null),
+        },
         style,
       ]}
     >
@@ -45,9 +53,9 @@ export function SeverityCell({ worst, style, children }: SeverityCellProps) {
 
 const styles = StyleSheet.create({
   day: {
-    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   notScored: {
     borderWidth: 1.5,
@@ -63,7 +71,6 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     borderWidth: 1.5,
     borderColor: colors.surfaceAlt,
-    borderRadius: INNER_RING_RADIUS,
     alignItems: 'center',
     justifyContent: 'center',
   },
