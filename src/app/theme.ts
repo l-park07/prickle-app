@@ -76,8 +76,8 @@ export const overlay = 'rgba(59, 47, 42, 0.45)';
 //    reserved for UI accents, NOT for "5", so a high score never reads as an
 //    alarm or a failure — that matters for Prickle's validating tone.
 export const severityScale: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: palette.paleGreen,
-  2: palette.oliveGreen,
+  1: palette.oliveGreen,
+  2: palette.paleGreen,
   3: palette.softOchre,
   4: palette.coral,
   5: palette.terracotta,

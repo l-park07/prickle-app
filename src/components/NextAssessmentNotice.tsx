@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { colors, spacing } from '../app/theme';
 import { useActiveUserId } from '../hooks/useActiveUserId';
-import { getNextAssessmentDate } from '../lib/assessments';
 import { formatFriendlyDate } from '../lib/calendarMath';
 import { db } from '../lib/db';
+import { getNextAssessmentDate } from '../lib/nextAssessments';
 import { AppText } from './AppText';
 import { Card } from './Card';
 

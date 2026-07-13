@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { colors, spacing } from '../app/theme';
-import type { DateAssessment } from '../lib/assessments';
 import { formatAccessibleDate, shiftISODate } from '../lib/calendarMath';
+import type { DateAssessment } from '../lib/nextAssessments';
 import { AppText } from './AppText';
 import { Card } from './Card';
 import { PrimaryButton } from './PrimaryButton';

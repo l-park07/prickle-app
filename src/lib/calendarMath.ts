@@ -30,6 +30,13 @@ export function todayISO(): string {
   return toISODate(new Date());
 }
 
+/** 'YYYY-MM-DD' -> the Monday of the ISO week containing it. */
+export function getWeekStart(iso: string): string {
+  const day = parseISODate(iso).getDay(); // 0=Sun..6=Sat
+  const offset = day === 0 ? -6 : 1 - day;
+  return shiftISODate(iso, offset);
+}
+
 /** 5 -> "5th", 12 -> "12th", 22 -> "22nd" — 11-13 are always "th". */
 function ordinal(n: number): string {
   const rem100 = n % 100;

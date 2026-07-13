@@ -12,10 +12,10 @@ import { TodayPhotosSection } from '../../components/TodayPhotosSection';
 import { TodaySitesSection } from '../../components/TodaySitesSection';
 import { WeeklyAssessmentLink } from '../../components/WeeklyAssessmentLink';
 import { useActiveUserId } from '../../hooks/useActiveUserId';
-import { DateAssessment, getAssessmentForDate } from '../../lib/assessments';
 import { todayISO } from '../../lib/calendarMath';
 import { DayEntry, getDayEntry } from '../../lib/chartSelectors';
 import { db } from '../../lib/db';
+import { DateAssessment, getAssessmentForDate } from '../../lib/nextAssessments';
 import { colors, spacing } from '../theme';
 
 export default function Today() {

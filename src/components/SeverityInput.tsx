@@ -11,8 +11,8 @@ interface SeverityInputProps {
 }
 
 const STOPS = [1, 2, 3, 4, 5] as const;
-const TRACK_HEIGHT = 32;
-const THUMB_SIZE = 48;
+const TRACK_HEIGHT = 28;
+const THUMB_SIZE = 40;
 
 /**
  * Editable severity slider, for the Log screen. Clear and the 1-5 track are
@@ -131,11 +131,11 @@ const styles = StyleSheet.create({
   segments: {
     flexDirection: 'row',
     height: TRACK_HEIGHT,
-    borderRadius: radius.sm,
-    overflow: 'hidden',
+    gap: spacing.xs,
   },
   segment: {
     flex: 1,
+    borderRadius: radius.sm,
   },
   thumb: {
     position: 'absolute',
