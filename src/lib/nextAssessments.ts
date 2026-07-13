@@ -2,6 +2,12 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { shiftISODate, todayISO } from './calendarMath';
 
 /**
+ * Queries against weekly_assessments: which week is next due, the assessment
+ * covering a given date, and the full past history — not just "what's next"
+ * despite the file name.
+ */
+
+/**
  * The next POEM/RECAP due date, or null if one is available right now.
  *
  * `null` covers two cases on purpose: the user has never done one (nothing to
@@ -57,4 +63,39 @@ export async function getAssessmentForDate(
   );
   if (!row) return null;
   return { weekStart: row.week_start, poemScore: row.poem_score, recapScore: row.recap_score };
+}
+
+export interface WeeklyAssessmentRecord {
+  id: string;
+  weekStart: string;
+  poemScore: number | null;
+  recapScore: number | null;
+  updatedAt: string; // ISO timestamp — when these scores were last (re)submitted
+}
+
+/** All of a user's past weekly assessments, most recent week first. */
+export async function getWeeklyAssessmentHistory(
+  db: SQLiteDatabase,
+  userId: string
+): Promise<WeeklyAssessmentRecord[]> {
+  const rows = await db.getAllAsync<{
+    id: string;
+    week_start: string;
+    poem_score: number | null;
+    recap_score: number | null;
+    updated_at: string;
+  }>(
+    `SELECT id, week_start, poem_score, recap_score, updated_at
+       FROM weekly_assessments
+      WHERE user_id = ? AND deleted_at IS NULL
+      ORDER BY week_start DESC`,
+    [userId]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    weekStart: r.week_start,
+    poemScore: r.poem_score,
+    recapScore: r.recap_score,
+    updatedAt: r.updated_at,
+  }));
 }

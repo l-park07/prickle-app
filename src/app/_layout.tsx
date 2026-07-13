@@ -45,7 +45,7 @@ function RootNavigator() {
           name="assessment"
           options={{ presentation: 'modal', headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen name="weekly" options={{ headerShown: true, title: 'Weekly' }} />
+        <Stack.Screen name="weekly" options={{ headerShown: true, title: 'POEM/RECAP Details' }} />
         <Stack.Screen name="dev-debug" options={{ headerShown: true, title: 'Debug' }} />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
