@@ -65,11 +65,25 @@ export function formatFriendlyDate(iso: string): string {
   return `${WEEKDAY_FORMATTER.format(date)}, ${MONTH_NAME_FORMATTER.format(date)} ${ordinal(day)}`;
 }
 
+/** 'YYYY-MM-DD' -> "Monday, July 13th", for the Log modal's date heading. */
+export function formatFullFriendlyDate(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return `${WEEKDAY_FORMATTER.format(date)}, ${MONTH_LONG_NAME_FORMATTER.format(date)} ${ordinal(day)}`;
+}
+
 /** 'YYYY-MM-DD' -> "April 12", for calendar cell accessibility labels. */
 export function formatAccessibleDate(iso: string): string {
   const [year, month, day] = iso.split('-').map(Number);
   const date = new Date(year, month - 1, day);
   return `${MONTH_LONG_NAME_FORMATTER.format(date)} ${day}`;
+}
+
+/** 'YYYY-MM-DD' -> "July 14th", for the photo detail viewer's date tag. */
+export function formatLongDate(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return `${MONTH_LONG_NAME_FORMATTER.format(date)} ${ordinal(day)}`;
 }
 
 /** Adjacent month, handling year rollover in both directions. */

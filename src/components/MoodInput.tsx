@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { Image, LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { colors, radius, severityScale, spacing } from '../app/theme';
-import { AppText } from './AppText';
 
 interface MoodInputProps {
   /** Always a definite 1-5 — no Clear/not-recorded state for mood. */
@@ -69,9 +68,6 @@ export function MoodInput({ value, onChange }: MoodInputProps) {
                 source={require('../../assets/cactus-images/cactus-slider-icon.png')}
                 style={styles.thumbImage}
               />
-              <AppText variant="label" color={colors.onPrimary}>
-                {value}
-              </AppText>
             </View>
           ) : null}
         </View>

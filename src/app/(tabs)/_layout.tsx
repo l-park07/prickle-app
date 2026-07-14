@@ -29,6 +29,15 @@ export default function TabLayout() {
         />
         <Tabs.Screen
           name="today"
+          listeners={({ navigation }) => ({
+            // Pressing the tab (from elsewhere, or re-pressing it while already
+            // here) always lands back on today's date — a distinct token each
+            // press (not just `date: todayISO()`) so this fires even when
+            // today's date is unchanged since the last press.
+            tabPress: () => {
+              navigation.setParams({ resetToToday: String(Date.now()) });
+            },
+          })}
           options={{
             title: 'Today',
             tabBarIcon: ({ color, focused }) => (

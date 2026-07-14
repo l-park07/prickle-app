@@ -1,14 +1,15 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet } from 'react-native';
+import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
 import { LogMedicationsSection } from '../components/LogMedicationsSection';
 import { LogMoodSection } from '../components/LogMoodSection';
-import { LogPhotosSection } from '../components/LogPhotosSection';
 import { LogSitesSection } from '../components/LogSitesSection';
 import { LogTriggersSection } from '../components/LogTriggersSection';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { useActiveUserId } from '../hooks/useActiveUserId';
+import { formatFullFriendlyDate } from '../lib/calendarMath';
 import {
   DayEntryMedication,
   DayEntryPhoto,
@@ -137,7 +138,7 @@ export default function LogModal() {
     return id;
   };
 
-  const handleAddPhoto = async (siteId: string | null, source: 'camera' | 'library') => {
+  const handleAddPhoto = async (siteId: string, source: 'camera' | 'library') => {
     if (!activeUserId || !date) return;
     try {
       const localUri = source === 'camera' ? await captureFromCamera() : await pickFromLibrary();
@@ -146,7 +147,7 @@ export default function LogModal() {
       // Read the score and materialize the log from the same in-memory `sites`
       // snapshot so the site_scores row and this photo's score never diverge.
       const ensuredLogId = logId ?? (await persistLog());
-      const score = siteId ? sites.find((s) => s.id === siteId)?.score ?? null : null;
+      const score = sites.find((s) => s.id === siteId)?.score ?? null;
       const takenAt = new Date().toISOString();
 
       const id = await addPhoto(db, {
@@ -179,6 +180,11 @@ export default function LogModal() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      {date ? (
+        <AppText variant="h2" style={styles.dateHeading}>
+          {formatFullFriendlyDate(date)}
+        </AppText>
+      ) : null}
       <Card style={styles.entryCard}>
         <LogSitesSection
           sites={sites}
@@ -202,11 +208,6 @@ export default function LogModal() {
           onAddMedication={handleAddMedication}
           onRemoveMedication={handleRemoveMedication}
         />
-        <LogPhotosSection
-          photos={photos}
-          onAdd={(source) => handleAddPhoto(null, source)}
-          onRemove={handleRemovePhoto}
-        />
         <PrimaryButton label="Save" onPress={handleSave} loading={saving} />
       </Card>
     </ScrollView>
@@ -221,6 +222,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.lg,
     gap: spacing.lg,
+  },
+  dateHeading: {
+    textAlign: 'center',
   },
   entryCard: {
     gap: spacing.lg,
