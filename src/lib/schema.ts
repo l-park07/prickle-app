@@ -36,14 +36,16 @@ CREATE TABLE IF NOT EXISTS sites (
 
 -- The treatments a user tracks. category powers your "manage treatments" feature.
 CREATE TABLE IF NOT EXISTS medications (
-  id          TEXT PRIMARY KEY,
-  user_id     TEXT,
-  name        TEXT NOT NULL,                -- "Prescription TCS", "Dupixent", "Cetirizine", ...
-  category    TEXT NOT NULL,                -- 'tcs' | 'prescribed_inhibitor' | 'biologic' | 'antihistamine' | 'otc' | 'lifestyle' | 'homeopathic' | 'other'
-  is_active   INTEGER NOT NULL DEFAULT 1,
-  created_at  TEXT NOT NULL,
-  updated_at  TEXT NOT NULL,
-  deleted_at  TEXT
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT,
+  name            TEXT NOT NULL,            -- "Prescription TCS", "Dupixent", "Cetirizine", ...
+  category        TEXT NOT NULL,            -- 'tcs' | 'prescribed_inhibitor' | 'biologic' | 'antihistamine' | 'otc' | 'lifestyle' | 'homeopathic' | 'other'
+  delivery_method TEXT,                     -- 'topical' | 'oral' | 'injectable' | 'other', nullable
+  frequency       TEXT,                     -- free-text label, e.g. "Daily", "1 week on / 2 weeks off"
+  is_active       INTEGER NOT NULL DEFAULT 1,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  deleted_at      TEXT
 );
 
 -- Known or suspected triggers. is_testing flags ones under active investigation

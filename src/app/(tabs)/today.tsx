@@ -49,11 +49,7 @@ export default function Today() {
 
   const goToLog = () => router.push({ pathname: '/log', params: { date: resolvedDate } });
 
-  // The seed/dev data records this slider under `stress`, not `mood` (the
-  // `mood` column is never populated) — read `stress` for the Mood bar until
-  // the seed data is corrected. A 0 there means "not tracked", not "calm",
-  // since the seed data used 0 as a null placeholder rather than a real score.
-  const moodScore = entry && entry.stress !== 0 ? entry.stress : null;
+  const moodScore = entry?.mood ?? null;
 
   return (
     <View style={styles.container}>

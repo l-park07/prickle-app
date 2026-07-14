@@ -33,7 +33,7 @@ export function DebugScreen() {
   const [seedResult, setSeedResult] = useState<string | null>(null);
   const [dump, setDump] = useState('');
   // TEMP: SeverityBar/SeverityInput preview — no real screen mounts these yet.
-  const [previewValue, setPreviewValue] = useState(3);
+  const [previewValue, setPreviewValue] = useState<number | null>(3);
 
   useEffect(() => {
     if (!activeUserId) {
