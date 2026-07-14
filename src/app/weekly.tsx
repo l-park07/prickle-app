@@ -78,7 +78,7 @@ export default function Weekly() {
           <Card style={styles.statusCard}>
             <AssessmentHistoryRow record={thisWeekRecord} />
             <PrimaryButton
-              label="Retake this week's assessment"
+              label="Edit this week's answers"
               onPress={() => router.push('/assessment')}
             />
           </Card>

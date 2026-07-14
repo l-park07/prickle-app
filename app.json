@@ -35,7 +35,14 @@
         }
       ],
       "expo-font",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Prickle uses your camera so you can add a photo to a skin entry.",
+          "photosPermission": "Prickle uses your photos so you can add a picture to a skin entry."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

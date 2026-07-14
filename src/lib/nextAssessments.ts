@@ -1,4 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import type { FlowAnswers } from '../hooks/useAssessmentFlow';
 import { shiftISODate, todayISO } from './calendarMath';
 
 /**
@@ -98,4 +99,29 @@ export async function getWeeklyAssessmentHistory(
     recapScore: r.recap_score,
     updatedAt: r.updated_at,
   }));
+}
+
+export interface CurrentWeekAssessment {
+  /** A row already exists for this week (scored or blank-voided). */
+  exists: boolean;
+  /** Stored per-question answers, or {} if none/no row. */
+  answers: FlowAnswers;
+}
+
+/**
+ * Whether this week already has an assessment, and its stored answers if so —
+ * powers the assessment modal's edit-vs-fresh decision and pre-fill.
+ */
+export async function getCurrentWeekAssessment(
+  db: SQLiteDatabase,
+  userId: string,
+  weekStart: string
+): Promise<CurrentWeekAssessment> {
+  const row = await db.getFirstAsync<{ answers: string | null }>(
+    `SELECT answers FROM weekly_assessments
+      WHERE user_id = ? AND week_start = ? AND deleted_at IS NULL`,
+    [userId, weekStart]
+  );
+  if (!row) return { exists: false, answers: {} };
+  return { exists: true, answers: row.answers ? JSON.parse(row.answers) : {} };
 }

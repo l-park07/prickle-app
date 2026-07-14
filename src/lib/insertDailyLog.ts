@@ -12,6 +12,13 @@
  *   * A day with no entry at all simply has NO daily_logs row (don't call this).
  *
  * Triggers/medications: a row here means "checked that day". No row = unchecked.
+ *
+ * CRITICAL: this function must NEVER delete-and-reinsert photos. Photos are
+ * written once at capture (see managePhotos.ts) and removed only by explicit
+ * soft-delete — they are not part of this day's "children" sweep. Folding
+ * photos into the same delete-and-reinsert pattern as site_scores/
+ * log_medications/log_triggers would silently wipe out capture history and
+ * the score snapshot stored on each photo every time a log is re-saved.
  */
 import * as Crypto from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';

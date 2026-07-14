@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS weekly_assessments (
   week_start  TEXT NOT NULL,                 -- 'YYYY-MM-DD' (Monday of the ISO week)
   poem_score  INTEGER,                       -- 0-28
   recap_score INTEGER,                       -- 0-28
+  answers     TEXT,                          -- JSON per-question answers for THIS row, so an edit can pre-fill
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL,
   deleted_at  TEXT

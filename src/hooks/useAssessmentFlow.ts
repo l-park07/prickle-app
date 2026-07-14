@@ -14,8 +14,12 @@ export type FlowAnswers = Record<string, number | undefined>;
  * Owns the weekly assessment's step position and answers so both can be
  * unit-tested apart from any UI. `back()` never clears `answers`, which is
  * what makes "back preserves prior answers" true without extra bookkeeping.
+ *
+ * `initialAnswers` seeds an edit session with a week's previously stored
+ * answers; the caller must not mount this hook until that seed is known
+ * (the useState initializer only applies once, on first mount).
  */
-export function useAssessmentFlow() {
+export function useAssessmentFlow(initialAnswers: FlowAnswers = {}) {
   const flow = useMemo<AssessmentFlowEntry[]>(
     () =>
       ASSESSMENT_SEQUENCE.flatMap((instrument) =>
@@ -29,7 +33,7 @@ export function useAssessmentFlow() {
   );
 
   const [step, setStep] = useState(-1); // -1 = intro, 0..flow.length-1 = question index
-  const [answers, setAnswers] = useState<FlowAnswers>({});
+  const [answers, setAnswers] = useState<FlowAnswers>(initialAnswers);
 
   const isIntro = step === -1;
   const isLast = step === flow.length - 1;

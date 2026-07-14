@@ -1,8 +1,10 @@
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { colors, radius, spacing } from '../app/theme';
+import type { DayEntryPhoto } from '../lib/chartSelectors';
 import { AppText } from './AppText';
+import { LogPhotoThumbnail } from './LogPhotoThumbnail';
 import { SeverityInput } from './SeverityInput';
 
 interface LogSite {
@@ -13,17 +15,23 @@ interface LogSite {
 
 interface LogSitesSectionProps {
   sites: LogSite[];
+  photos: DayEntryPhoto[];
   onChangeScore: (siteId: string, score: number | null) => void;
   onAddSite: (name: string) => void;
   onRemoveSite: (siteId: string) => void;
+  onAddPhoto: (siteId: string, source: 'camera' | 'library') => void;
+  onRemovePhoto: (photoId: string) => void;
 }
 
-/** Editable Sites section — per-site severity sliders, plus add/remove of the master list. */
+/** Editable Sites section — per-site severity sliders, photos, plus add/remove of the master list. */
 export function LogSitesSection({
   sites,
+  photos,
   onChangeScore,
   onAddSite,
   onRemoveSite,
+  onAddPhoto,
+  onRemovePhoto,
 }: LogSitesSectionProps) {
   const [adding, setAdding] = useState(false);
   const [draftName, setDraftName] = useState('');
@@ -32,6 +40,14 @@ export function LogSitesSection({
     Alert.alert('Remove this site?', `"${site.name}" will no longer appear in your daily log.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: () => onRemoveSite(site.id) },
+    ]);
+  };
+
+  const handleAddPhotoPress = (siteId: string) => {
+    Alert.alert('Add a photo', undefined, [
+      { text: 'Take Photo', onPress: () => onAddPhoto(siteId, 'camera') },
+      { text: 'Choose from Library', onPress: () => onAddPhoto(siteId, 'library') },
+      { text: 'Cancel', style: 'cancel' },
     ]);
   };
 
@@ -47,25 +63,49 @@ export function LogSitesSection({
     <View style={styles.section}>
       <AppText variant="title">Sites</AppText>
 
-      {sites.map((site) => (
-        <View key={site.id} style={styles.siteRow}>
-          <View style={styles.siteHeader}>
-            <AppText variant="label">{site.name}</AppText>
-            <Pressable
-              onPress={() => confirmRemove(site)}
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${site.name}`}
-              hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
-            >
-              <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
-            </Pressable>
+      {sites.map((site) => {
+        const sitePhotos = photos.filter((p) => p.siteId === site.id);
+        return (
+          <View key={site.id} style={styles.siteRow}>
+            <View style={styles.siteHeader}>
+              <AppText variant="label">{site.name}</AppText>
+              <View style={styles.siteActions}>
+                <Pressable
+                  onPress={() => handleAddPhotoPress(site.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add photo for ${site.name}`}
+                  hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
+                >
+                  <Ionicons name="camera-outline" size={18} color={colors.textSecondary} />
+                </Pressable>
+                <Pressable
+                  onPress={() => confirmRemove(site)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${site.name}`}
+                  hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
+                >
+                  <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+            </View>
+            <SeverityInput
+              value={site.score}
+              onChange={(score) => onChangeScore(site.id, score)}
+            />
+            {sitePhotos.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
+                {sitePhotos.map((photo) => (
+                  <LogPhotoThumbnail
+                    key={photo.id}
+                    uri={photo.localUri}
+                    onRemove={() => onRemovePhoto(photo.id)}
+                  />
+                ))}
+              </ScrollView>
+            ) : null}
           </View>
-          <SeverityInput
-            value={site.score}
-            onChange={(score) => onChangeScore(site.id, score)}
-          />
-        </View>
-      ))}
+        );
+      })}
 
       {adding ? (
         <View style={styles.addRow}>
@@ -105,6 +145,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  siteActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  photoRow: {
+    gap: spacing.sm,
   },
   addRow: {
     flexDirection: 'row',

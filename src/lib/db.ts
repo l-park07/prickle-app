@@ -10,4 +10,5 @@ export const db = openDatabaseSync('prickle.db');
 export const dbReady = db.execAsync(SCHEMA_SQL).then(async () => {
   await ensureColumn(db, 'medications', 'delivery_method', 'TEXT');
   await ensureColumn(db, 'medications', 'frequency', 'TEXT');
+  await ensureColumn(db, 'weekly_assessments', 'answers', 'TEXT');
 });

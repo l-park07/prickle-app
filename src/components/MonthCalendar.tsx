@@ -1,6 +1,6 @@
 import { Ionicons } from '@react-native-vector-icons/ionicons';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { colors, spacing } from '../app/theme';
 import { useActiveUserId } from '../hooks/useActiveUserId';
@@ -23,17 +23,24 @@ export function MonthCalendar() {
   const [severityByDate, setSeverityByDate] = useState<Record<string, number | null>>({});
   const [legendVisible, setLegendVisible] = useState(false);
 
-  useEffect(() => {
-    if (!activeUserId) return;
-    let cancelled = false;
-    const [from, to] = monthBounds(year, month);
-    getMonthWorstSeverity(db, activeUserId, from, to).then((result) => {
-      if (!cancelled) setSeverityByDate(result);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeUserId, year, month]);
+  // useFocusEffect (not useEffect): the Log modal returns here via
+  // router.back(), which refocuses this already-mounted screen rather than
+  // remounting it, so a mount-only effect would show stale colors after
+  // saving a log. Also refetches when switching back to the Home tab after
+  // logging from Today.
+  useFocusEffect(
+    useCallback(() => {
+      if (!activeUserId) return;
+      let cancelled = false;
+      const [from, to] = monthBounds(year, month);
+      getMonthWorstSeverity(db, activeUserId, from, to).then((result) => {
+        if (!cancelled) setSeverityByDate(result);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [activeUserId, year, month])
+  );
 
   const weeks = getMonthGrid(year, month);
   const today = todayISO();

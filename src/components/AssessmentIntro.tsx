@@ -6,13 +6,20 @@ import { PrimaryButton } from './PrimaryButton';
 
 interface AssessmentIntroProps {
   onBegin: () => void;
+  /** True when reopening this week's already-submitted assessment for correction. */
+  isEditing?: boolean;
 }
 
 /** Explains the two-part POEM/RECAP flow before the carousel begins. */
-export function AssessmentIntro({ onBegin }: AssessmentIntroProps) {
+export function AssessmentIntro({ onBegin, isEditing }: AssessmentIntroProps) {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {isEditing ? (
+          <AppText variant="body" color={colors.textSecondary}>
+            You're updating this week's answers — they should still reflect the past 7 days.
+          </AppText>
+        ) : null}
         <AppText variant="h2">Weekly Check-in</AppText>
         <AppText variant="body" color={colors.textSecondary}>
           This check-in has two parts, {TOTAL_QUESTIONS} short questions in all. Answer what
