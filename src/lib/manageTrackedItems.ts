@@ -99,3 +99,29 @@ export async function removeMedication(db: SQLiteDatabase, medicationId: string)
     [ts, ts, medicationId]
   );
 }
+
+export interface TrackedItemCounts {
+  sites: number;
+  triggers: number;
+  medications: number;
+}
+
+/** Live counts of each active master list — for a summary display, not a cache to keep in sync. */
+export async function getActiveTrackedItemCounts(
+  db: SQLiteDatabase,
+  userId: string
+): Promise<TrackedItemCounts> {
+  const count = async (table: 'sites' | 'triggers' | 'medications') => {
+    const row = await db.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM ${table} WHERE user_id = ? AND is_active = 1 AND deleted_at IS NULL`,
+      [userId]
+    );
+    return row?.count ?? 0;
+  };
+  const [sites, triggers, medications] = await Promise.all([
+    count('sites'),
+    count('triggers'),
+    count('medications'),
+  ]);
+  return { sites, triggers, medications };
+}

@@ -2,17 +2,10 @@ import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { colors, radius, spacing } from '../app/theme';
+import { DELIVERY_METHODS, FREQUENCIES } from '../lib/medicationOptions';
 import { AppText } from './AppText';
 import { LogCheckboxRow } from './LogCheckboxRow';
 import { OptionDropdown } from './OptionDropdown';
-
-const DELIVERY_METHODS = ['Topical', 'Oral', 'Injectable'];
-const FREQUENCIES = [
-  'Daily',
-  '1 week on / 2 weeks off',
-  'Monthly',
-  '2 weeks on / 4 weeks off',
-];
 
 interface LogMedication {
   id: string;

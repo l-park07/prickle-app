@@ -12,20 +12,20 @@
  * Place at: context/AuthProvider.tsx (adjust the ./firebase import path).
  */
 import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from 'react';
-import {
-  onAuthStateChanged,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  User,
+    createUserWithEmailAndPassword,
+    signOut as firebaseSignOut,
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    User,
 } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import {
+    createContext,
+    ReactNode,
+    useContext,
+    useEffect,
+    useState,
+} from 'react';
+import { auth } from '../src/lib/firebase';
 
 interface AuthContextValue {
   /** The signed-in user, or null if signed out. */

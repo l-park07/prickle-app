@@ -138,6 +138,20 @@ export async function getMonthWorstSeverity(
   return Object.fromEntries(rows.map((r) => [r.date, r.worst]));
 }
 
+/**
+ * Cheap existence check — a non-deleted daily_logs row for this exact date,
+ * without getDayEntry's full sites/triggers/medications/photos joins.
+ * Used to decide whether a day still needs its daily reminder (don't nudge
+ * someone who's already logged today).
+ */
+export async function hasLogForDate(db: SQLiteDatabase, userId: string, date: string): Promise<boolean> {
+  const row = await db.getFirstAsync<{ id: string }>(
+    `SELECT id FROM daily_logs WHERE user_id = ? AND log_date = ? AND deleted_at IS NULL`,
+    [userId, date]
+  );
+  return row !== null;
+}
+
 export interface DayEntrySite {
   id: string;
   name: string;

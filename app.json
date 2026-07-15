@@ -42,6 +42,12 @@
           "cameraPermission": "Prickle uses your camera so you can add a photo to a skin entry.",
           "photosPermission": "Prickle uses your photos so you can add a picture to a skin entry."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#a75e5b"
+        }
       ]
     ],
     "experiments": {

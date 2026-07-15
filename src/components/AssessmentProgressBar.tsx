@@ -5,13 +5,14 @@ import { AppText } from './AppText';
 interface AssessmentProgressBarProps {
   current: number;   // 1-based position, e.g. 3 of 14
   total: number;
-  boundary: number;   // step count where the instrument changes (e.g. POEM -> RECAP)
+  /** Step count where the instrument changes (e.g. POEM -> RECAP). Omit for a flow with no such split. */
+  boundary?: number;
 }
 
-/** Overall position through the assessment, with a tick marking the POEM/RECAP split. */
+/** Overall position through a step flow, optionally with a tick marking an instrument split. */
 export function AssessmentProgressBar({ current, total, boundary }: AssessmentProgressBarProps) {
   const fillPct = (current / total) * 100;
-  const boundaryPct = (boundary / total) * 100;
+  const boundaryPct = boundary !== undefined ? (boundary / total) * 100 : null;
 
   return (
     <View style={styles.container}>
@@ -21,7 +22,9 @@ export function AssessmentProgressBar({ current, total, boundary }: AssessmentPr
         accessibilityValue={{ min: 1, max: total, now: current }}
       >
         <View style={[styles.fill, { width: `${fillPct}%` }]} />
-        <View style={[styles.boundaryTick, { left: `${boundaryPct}%` }]} />
+        {boundaryPct !== null ? (
+          <View style={[styles.boundaryTick, { left: `${boundaryPct}%` }]} />
+        ) : null}
       </View>
       <AppText variant="caption" color={colors.textSecondary} style={styles.caption}>
         {current} of {total}

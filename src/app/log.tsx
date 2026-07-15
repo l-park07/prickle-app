@@ -28,6 +28,7 @@ import {
   removeTrigger,
 } from '../lib/manageTrackedItems';
 import { addPhoto, removePhoto } from '../lib/managePhotos';
+import { rescheduleNotifications } from '../lib/notificationScheduler';
 import { captureFromCamera, pickFromLibrary } from '../lib/photoCapture';
 import { colors, spacing } from './theme';
 
@@ -135,6 +136,9 @@ export default function LogModal() {
       triggerIds: triggers.filter((t) => t.checked).map((t) => t.id),
     });
     setLogId(id);
+    // A saved log may be today's — cancel the daily reminder immediately
+    // rather than leaving it queued until the next app-foreground.
+    await rescheduleNotifications(db, activeUserId!);
     return id;
   };
 

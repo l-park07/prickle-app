@@ -6,7 +6,8 @@ import { AppText } from './AppText';
 
 interface AssessmentHeaderBarProps {
   title: string;
-  onClose: () => void;
+  /** Omit to render the title bar with no close control (e.g. onboarding, which has no cancel affordance). */
+  onClose?: () => void;
 }
 
 /** Full-width colored title bar for the assessment modal (headerShown is false for this route, so this stands in for it). */
@@ -18,14 +19,16 @@ export function AssessmentHeaderBar({ title, onClose }: AssessmentHeaderBarProps
       <AppText variant="title" color={colors.onPrimary}>
         {title}
       </AppText>
-      <Pressable
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Cancel this check-in"
-        hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
-      >
-        <Ionicons name="close" size={24} color={colors.onPrimary} />
-      </Pressable>
+      {onClose ? (
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel this check-in"
+          hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
+        >
+          <Ionicons name="close" size={24} color={colors.onPrimary} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }

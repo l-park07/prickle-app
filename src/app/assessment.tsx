@@ -14,6 +14,7 @@ import { getWeekStart, todayISO } from '../lib/calendarMath';
 import { db } from '../lib/db';
 import { insertWeeklyAssessment } from '../lib/insertWeeklyAssessment';
 import { CurrentWeekAssessment, getCurrentWeekAssessment } from '../lib/nextAssessments';
+import { rescheduleNotifications } from '../lib/notificationScheduler';
 import { colors, spacing } from './theme';
 
 export default function AssessmentModal() {
@@ -73,6 +74,10 @@ function AssessmentFlowScreen({
       recapScore: recapResult.score,
       answers,
     });
+    // Submitting/editing changes getNextAssessmentDate's result, so the
+    // weekly reminder's next fire date must be recomputed now, not just on
+    // next app-foreground.
+    await rescheduleNotifications(db, activeUserId);
     router.dismissTo('/weekly');
   };
 

@@ -10,8 +10,8 @@
  *
  * Place at: hooks/useActiveUserId.ts
  */
-import { useAuth } from '../context/AuthProvider';
 import { useDevProfile } from '../dev/devProfileStore';
+import { useAuth } from '../src/context/AuthProvider';
 
 export function useActiveUserId(): string | null {
   const { user } = useAuth();

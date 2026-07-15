@@ -61,6 +61,10 @@ export default function Profile() {
           <SettingsRow label="Account" onPress={() => router.push('/profile/account')} />
           <SettingsRow label="Privacy" onPress={() => router.push('/profile/privacy')} />
           <SettingsRow
+            label="Notifications"
+            onPress={() => router.push('/profile/notifications')}
+          />
+          <SettingsRow
             label="Sign out"
             onPress={handleSignOut}
             labelColor={colors.error}
