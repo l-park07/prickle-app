@@ -1,41 +1,55 @@
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { colors, spacing } from '../app/theme';
-import { TRIGGER_CATEGORIES } from '../lib/triggerCategories';
+import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { colors, radius, spacing } from '../app/theme';
+import { DayEntryTrigger } from '../lib/chartSelectors';
+import {
+  CATEGORY_LABELS,
+  TRIGGER_CATEGORY_OPTIONS,
+  matchesTriggerSearch,
+  type SearchableTrigger,
+  type TriggerRowCategory,
+} from '../lib/manageTriggers';
 import { AppText } from './AppText';
 import { LogCheckboxRow } from './LogCheckboxRow';
 import { OptionDropdown } from './OptionDropdown';
 
-interface LogTrigger {
-  id: string;
-  name: string;
-  checked: boolean;
-}
-
 interface LogTriggersSectionProps {
-  triggers: LogTrigger[];
+  triggers: DayEntryTrigger[];
+  searchResults: SearchableTrigger[];
   onToggle: (id: string) => void;
-  onAddTrigger: (name: string) => void;
+  onSelectSearchResult: (result: SearchableTrigger) => void;
+  onAddCustomTrigger: (input: { label: string; category: TriggerRowCategory }) => void;
   onRemoveTrigger: (id: string) => void;
 }
 
-/** Editable Triggers checklist, plus a category-guided add-new flow. */
+/**
+ * Checklist of the user's own triggers (watched ones pinned to the top, with a
+ * "Watching" marker) plus a type-to-filter search over the catalog ∪ the
+ * user's list.
+ */
 export function LogTriggersSection({
   triggers,
+  searchResults,
   onToggle,
-  onAddTrigger,
+  onSelectSearchResult,
+  onAddCustomTrigger,
   onRemoveTrigger,
 }: LogTriggersSectionProps) {
   const [adding, setAdding] = useState(false);
-  const [categoryLabel, setCategoryLabel] = useState<string | null>(null);
-  const [triggerName, setTriggerName] = useState<string | null>(null);
-  const [customName, setCustomName] = useState('');
+  const [query, setQuery] = useState('');
+  const [addingCustom, setAddingCustom] = useState(false);
+  const [customCategoryLabel, setCustomCategoryLabel] = useState<string | null>(null);
 
-  const selectedCategory = TRIGGER_CATEGORIES.find((c) => c.label === categoryLabel);
-  const categoryAllowsCustom = !selectedCategory || selectedCategory.options.length === 0;
+  const sortedTriggers = [...triggers].sort((a, b) => Number(b.watched) - Number(a.watched));
 
-  const confirmRemove = (trigger: LogTrigger) => {
+  const trimmedQuery = query.trim();
+  const filteredResults = trimmedQuery
+    ? searchResults.filter((r) => matchesTriggerSearch(r, trimmedQuery))
+    : [];
+  const noMatches = trimmedQuery.length > 0 && filteredResults.length === 0;
+
+  const confirmRemove = (trigger: DayEntryTrigger) => {
     Alert.alert(
       'Remove this trigger?',
       `"${trigger.name}" will no longer appear in your daily log.`,
@@ -48,15 +62,24 @@ export function LogTriggersSection({
 
   const resetAddFlow = () => {
     setAdding(false);
-    setCategoryLabel(null);
-    setTriggerName(null);
-    setCustomName('');
+    setQuery('');
+    setAddingCustom(false);
+    setCustomCategoryLabel(null);
   };
 
-  const handleAdd = () => {
-    const finalName = (triggerName ?? '').trim();
-    if (!finalName) return;
-    onAddTrigger(finalName);
+  const handleSelectResult = (result: SearchableTrigger) => {
+    onSelectSearchResult(result);
+    resetAddFlow();
+  };
+
+  const handleStartCustom = () => {
+    setAddingCustom(true);
+  };
+
+  const handleConfirmCustom = () => {
+    const category = TRIGGER_CATEGORY_OPTIONS.find((o) => o.label === customCategoryLabel)?.id;
+    if (!category || !trimmedQuery) return;
+    onAddCustomTrigger({ label: trimmedQuery, category });
     resetAddFlow();
   };
 
@@ -64,17 +87,19 @@ export function LogTriggersSection({
     <View style={styles.section}>
       <AppText variant="title">Triggers</AppText>
 
-      {triggers.length === 0 ? (
+      {sortedTriggers.length === 0 ? (
         <AppText variant="caption" color={colors.textSecondary}>
           No triggers set up yet
         </AppText>
       ) : (
-        triggers.map((trigger) => (
+        sortedTriggers.map((trigger) => (
           <View key={trigger.id} style={styles.row}>
             <View style={styles.checkboxWrap}>
               <LogCheckboxRow
                 label={trigger.name}
                 checked={trigger.checked}
+                detail={CATEGORY_LABELS[trigger.category as TriggerRowCategory] ?? trigger.category}
+                badge={trigger.watched ? 'Watching' : undefined}
                 onToggle={() => onToggle(trigger.id)}
               />
             </View>
@@ -92,42 +117,84 @@ export function LogTriggersSection({
 
       {adding ? (
         <View style={styles.addForm}>
-          <OptionDropdown
-            label="Category"
-            options={TRIGGER_CATEGORIES.map((c) => c.label)}
-            value={categoryLabel}
-            onChange={(label) => {
-              setCategoryLabel(label);
-              setTriggerName(null);
-              setCustomName('');
-            }}
+          <TextInput
+            style={styles.input}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search triggers…"
+            placeholderTextColor={colors.textSecondary}
+            autoFocus
           />
-          {selectedCategory ? (
-            <OptionDropdown
-              label="Trigger"
-              options={selectedCategory.options}
-              value={triggerName}
-              onChange={setTriggerName}
-              allowCustom={categoryAllowsCustom}
-              customValue={customName}
-              onCustomChange={(text) => {
-                setCustomName(text);
-                setTriggerName(text);
-              }}
-            />
+
+          {filteredResults.length > 0 ? (
+            <View style={styles.results}>
+              {filteredResults.map((result) => (
+                <Pressable
+                  key={result.key}
+                  onPress={() => handleSelectResult(result)}
+                  style={styles.resultRow}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.resultTextColumn}>
+                    <AppText variant="body">{result.label}</AppText>
+                    <AppText variant="caption" color={colors.textSecondary}>
+                      {CATEGORY_LABELS[result.category]}
+                    </AppText>
+                  </View>
+                  {result.added ? (
+                    <AppText variant="caption" color={colors.success}>
+                      Added
+                    </AppText>
+                  ) : null}
+                </Pressable>
+              ))}
+            </View>
           ) : null}
-          <View style={styles.addFormButtons}>
-            <Pressable onPress={resetAddFlow} accessibilityRole="button">
-              <AppText variant="label" color={colors.textSecondary}>
-                Cancel
+
+          {noMatches && !addingCustom ? (
+            <View style={styles.noMatches}>
+              <AppText variant="caption" color={colors.textSecondary}>
+                No matches for "{trimmedQuery}"
               </AppText>
-            </Pressable>
-            <Pressable onPress={handleAdd} accessibilityRole="button">
-              <AppText variant="label" color={colors.primary}>
-                Add
-              </AppText>
-            </Pressable>
-          </View>
+              <Pressable onPress={handleStartCustom} accessibilityRole="button">
+                <AppText variant="label" color={colors.primary}>
+                  + Add "{trimmedQuery}" as a new trigger
+                </AppText>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {addingCustom ? (
+            <View style={styles.addForm}>
+              <AppText variant="label">Add "{trimmedQuery}" as</AppText>
+              <OptionDropdown
+                label="Category"
+                options={TRIGGER_CATEGORY_OPTIONS.map((o) => o.label)}
+                value={customCategoryLabel}
+                onChange={setCustomCategoryLabel}
+              />
+              <View style={styles.addFormButtons}>
+                <Pressable onPress={resetAddFlow} accessibilityRole="button">
+                  <AppText variant="label" color={colors.textSecondary}>
+                    Cancel
+                  </AppText>
+                </Pressable>
+                <Pressable onPress={handleConfirmCustom} accessibilityRole="button">
+                  <AppText variant="label" color={colors.primary}>
+                    Add
+                  </AppText>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.addFormButtons}>
+              <Pressable onPress={resetAddFlow} accessibilityRole="button">
+                <AppText variant="label" color={colors.textSecondary}>
+                  Cancel
+                </AppText>
+              </Pressable>
+            </View>
+          )}
         </View>
       ) : (
         <Pressable onPress={() => setAdding(true)} accessibilityRole="button">
@@ -159,5 +226,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: spacing.lg,
+  },
+  input: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.textPrimary,
+  },
+  results: {
+    gap: spacing.xs,
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  resultTextColumn: {
+    flex: 1,
+  },
+  noMatches: {
+    gap: spacing.xs,
   },
 });

@@ -1,8 +1,10 @@
 /**
- * Add/soft-delete for the three per-user master lists (sites, triggers,
- * medications) that daily_logs' children reference. These edit the shared
- * list, not just one day's entry — never hard-delete, so history stays intact
- * (see is_active/deleted_at convention in schema.ts).
+ * Add/soft-delete for the per-user master lists (sites, medications) that
+ * daily_logs' children reference. These edit the shared list, not just one
+ * day's entry — never hard-delete, so history stays intact (see
+ * is_active/deleted_at convention in schema.ts). Triggers have their own
+ * equivalent in manageTriggers.ts (addKnownTrigger/removeKnownTrigger),
+ * which also handles catalog slugs/categories and dedupe/revive.
  */
 import * as Crypto from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
@@ -35,34 +37,6 @@ export async function removeSite(db: SQLiteDatabase, siteId: string): Promise<vo
   await db.runAsync(
     `UPDATE sites SET is_active = 0, deleted_at = ?, updated_at = ? WHERE id = ?`,
     [ts, ts, siteId]
-  );
-}
-
-/**
- * Category is a UI-only grouping used to help the user pick a name (see
- * triggerCategories.ts) — the triggers table has no category column, and only
- * the chosen name is persisted here.
- */
-export async function addTrigger(
-  db: SQLiteDatabase,
-  userId: string,
-  name: string
-): Promise<string> {
-  const id = uuid();
-  const ts = now();
-  await db.runAsync(
-    `INSERT INTO triggers (id, user_id, name, is_testing, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, 0, 1, ?, ?)`,
-    [id, userId, name, ts, ts]
-  );
-  return id;
-}
-
-export async function removeTrigger(db: SQLiteDatabase, triggerId: string): Promise<void> {
-  const ts = now();
-  await db.runAsync(
-    `UPDATE triggers SET is_active = 0, deleted_at = ?, updated_at = ? WHERE id = ?`,
-    [ts, ts, triggerId]
   );
 }
 

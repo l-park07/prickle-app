@@ -19,14 +19,17 @@ import {
 } from '../lib/chartSelectors';
 import { db } from '../lib/db';
 import { insertDailyLog } from '../lib/insertDailyLog';
+import { addMedication, addSite, removeMedication, removeSite } from '../lib/manageTrackedItems';
 import {
-  addMedication,
-  addSite,
-  addTrigger,
-  removeMedication,
-  removeSite,
-  removeTrigger,
-} from '../lib/manageTrackedItems';
+  addKnownTrigger,
+  customSearchableTrigger,
+  getSearchableTriggers,
+  markSearchableTriggerAdded,
+  markSearchableTriggerRemoved,
+  removeKnownTrigger,
+  type SearchableTrigger,
+  type TriggerRowCategory,
+} from '../lib/manageTriggers';
 import { addPhoto, removePhoto } from '../lib/managePhotos';
 import { rescheduleNotifications } from '../lib/notificationScheduler';
 import { captureFromCamera, pickFromLibrary } from '../lib/photoCapture';
@@ -40,6 +43,7 @@ export default function LogModal() {
   const [sites, setSites] = useState<DayEntrySite[]>([]);
   const [mood, setMood] = useState(3);
   const [triggers, setTriggers] = useState<DayEntryTrigger[]>([]);
+  const [searchableTriggers, setSearchableTriggers] = useState<SearchableTrigger[]>([]);
   const [medications, setMedications] = useState<DayEntryMedication[]>([]);
   const [photos, setPhotos] = useState<DayEntryPhoto[]>([]);
   const [logId, setLogId] = useState<string | null>(null);
@@ -49,11 +53,15 @@ export default function LogModal() {
   useEffect(() => {
     if (!activeUserId || !date) return;
     let cancelled = false;
-    getDayEntry(db, activeUserId, date).then((entry) => {
+    Promise.all([
+      getDayEntry(db, activeUserId, date),
+      getSearchableTriggers(db, activeUserId),
+    ]).then(([entry, searchable]) => {
       if (cancelled) return;
       setSites(entry.sites);
       setMood(entry.mood ?? 3);
       setTriggers(entry.triggers);
+      setSearchableTriggers(searchable);
       setMedications(entry.medications);
       setPhotos(entry.photos);
       setLogId(entry.logId);
@@ -85,15 +93,41 @@ export default function LogModal() {
     );
   };
 
-  const handleAddTrigger = async (name: string) => {
+  const handleSelectTriggerResult = async (result: SearchableTrigger) => {
     if (!activeUserId) return;
-    const id = await addTrigger(db, activeUserId, name);
-    setTriggers((prev) => [...prev, { id, name, checked: true }]);
+    if (result.triggerId) {
+      // Already on the list — just check it for today. No-op if already checked.
+      setTriggers((prev) =>
+        prev.map((t) => (t.id === result.triggerId ? { ...t, checked: true } : t))
+      );
+      return;
+    }
+    const id = await addKnownTrigger(db, activeUserId, {
+      slug: result.slug,
+      label: result.label,
+      category: result.category,
+    });
+    setTriggers((prev) => [
+      ...prev,
+      { id, name: result.label, category: result.category, checked: true, watched: false },
+    ]);
+    setSearchableTriggers((prev) => markSearchableTriggerAdded(prev, result.key, id));
+  };
+
+  const handleAddCustomTrigger = async (input: { label: string; category: TriggerRowCategory }) => {
+    if (!activeUserId) return;
+    const id = await addKnownTrigger(db, activeUserId, input);
+    setTriggers((prev) => [
+      ...prev,
+      { id, name: input.label, category: input.category, checked: true, watched: false },
+    ]);
+    setSearchableTriggers((prev) => [...prev, customSearchableTrigger(id, input)]);
   };
 
   const handleRemoveTrigger = async (triggerId: string) => {
-    await removeTrigger(db, triggerId);
+    await removeKnownTrigger(db, triggerId);
     setTriggers((prev) => prev.filter((t) => t.id !== triggerId));
+    setSearchableTriggers((prev) => markSearchableTriggerRemoved(prev, triggerId));
   };
 
   const handleToggleMedication = (medicationId: string) => {
@@ -202,8 +236,10 @@ export default function LogModal() {
         <LogMoodSection mood={mood} onChange={setMood} />
         <LogTriggersSection
           triggers={triggers}
+          searchResults={searchableTriggers}
           onToggle={handleToggleTrigger}
-          onAddTrigger={handleAddTrigger}
+          onSelectSearchResult={handleSelectTriggerResult}
+          onAddCustomTrigger={handleAddCustomTrigger}
           onRemoveTrigger={handleRemoveTrigger}
         />
         <LogMedicationsSection

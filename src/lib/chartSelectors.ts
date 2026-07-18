@@ -6,6 +6,7 @@
  * Changing time scale = the date filter + whether you aggregate.
  */
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { todayISO } from './calendarMath';
 
 /** A tidy data point most chart libraries can consume directly. */
 export interface SeriesPoint {
@@ -162,8 +163,12 @@ export interface DayEntrySite {
 export interface DayEntryTrigger {
   id: string;
   name: string;
+  category: string;
   /** true iff a log_triggers row exists for this day. */
   checked: boolean;
+  /** true iff there's a live observation window (an experiments row with
+   *  trigger_id = this, deleted_at IS NULL, end_date in the future). */
+  watched: boolean;
 }
 
 export interface DayEntryMedication {
@@ -232,13 +237,24 @@ export async function getDayEntry(
     [logId, userId]
   );
 
-  const triggerRows = await db.getAllAsync<{ id: string; name: string; checked: number }>(
-    `SELECT t.id, t.name, CASE WHEN lt.id IS NOT NULL THEN 1 ELSE 0 END AS checked
+  const triggerRows = await db.getAllAsync<{
+    id: string;
+    name: string;
+    category: string;
+    checked: number;
+    watched: number;
+  }>(
+    `SELECT t.id, t.name, t.category,
+            CASE WHEN lt.id IS NOT NULL THEN 1 ELSE 0 END AS checked,
+            CASE WHEN EXISTS (
+              SELECT 1 FROM experiments e
+               WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
+            ) THEN 1 ELSE 0 END AS watched
        FROM triggers t
        LEFT JOIN log_triggers lt ON lt.trigger_id = t.id AND lt.log_id = ? AND lt.deleted_at IS NULL
       WHERE t.user_id = ? AND t.is_active = 1 AND t.deleted_at IS NULL
-      ORDER BY t.name ASC`,
-    [logId, userId]
+      ORDER BY watched DESC, t.name ASC`,
+    [todayISO(), logId, userId]
   );
 
   const medicationRows = await db.getAllAsync<{
@@ -277,7 +293,13 @@ export async function getDayEntry(
     mood: log?.mood ?? null,
     note: log?.note ?? null,
     sites,
-    triggers: triggerRows.map((r) => ({ id: r.id, name: r.name, checked: r.checked === 1 })),
+    triggers: triggerRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      checked: r.checked === 1,
+      watched: r.watched === 1,
+    })),
     medications: medicationRows.map((r) => ({
       id: r.id,
       name: r.name,

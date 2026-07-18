@@ -48,12 +48,16 @@ CREATE TABLE IF NOT EXISTS medications (
   deleted_at      TEXT
 );
 
--- Known or suspected triggers. is_testing flags ones under active investigation
--- (your trigger-discovery feature).
+-- Known or suspected triggers — the ONE trigger list. is_testing flags ones
+-- under active investigation (your trigger-discovery feature).
+-- A trigger is "watched" iff it has an active experiments row (see below);
+-- otherwise it's "known". That state lives on experiments, not here.
 CREATE TABLE IF NOT EXISTS triggers (
   id          TEXT PRIMARY KEY,
   user_id     TEXT,
   name        TEXT NOT NULL,                -- "Hard water", "Fragranced products", "Cold dry air", ...
+  slug        TEXT,                         -- content/triggerCatalog.ts CatalogTrigger.id; NULL for a custom (name-only) trigger
+  category    TEXT NOT NULL DEFAULT 'other', -- 'indoor'|'outdoor'|'ingesting'|'applying'|'touching'|'other' — denormalized so rendering the subtext never needs a catalog join
   is_testing  INTEGER NOT NULL DEFAULT 0,
   is_active   INTEGER NOT NULL DEFAULT 1,
   created_at  TEXT NOT NULL,
@@ -62,6 +66,10 @@ CREATE TABLE IF NOT EXISTS triggers (
 );
 
 -- Optional structured experiments (Jason's "Active Experiment": detergent, diet, ...).
+-- Also doubles as a trigger's observation window: trigger_id/start_date/end_date
+-- are set when the user starts "watching" a trigger from the Triggers tab. A
+-- trigger counts as watched while a row here has trigger_id = that trigger,
+-- deleted_at IS NULL, and end_date in the future.
 CREATE TABLE IF NOT EXISTS experiments (
   id          TEXT PRIMARY KEY,
   user_id     TEXT,
@@ -69,6 +77,10 @@ CREATE TABLE IF NOT EXISTS experiments (
   hypothesis  TEXT,
   started_on  TEXT,                          -- 'YYYY-MM-DD'
   ended_on    TEXT,
+  trigger_id  TEXT REFERENCES triggers(id),  -- set when this row is a trigger's watch window
+  start_date  TEXT,                          -- 'YYYY-MM-DD', watch window start
+  end_date    TEXT,                          -- 'YYYY-MM-DD', watch window end (start + 14 days minimum)
+  note        TEXT,                          -- optional end-of-window note; nothing writes this yet
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL,
   deleted_at  TEXT

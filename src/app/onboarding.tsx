@@ -18,16 +18,17 @@ import { todayISO } from '../lib/calendarMath';
 import { DayEntryMedication, DayEntrySite, DayEntryTrigger, getDayEntry } from '../lib/chartSelectors';
 import { db } from '../lib/db';
 import { insertDailyLog } from '../lib/insertDailyLog';
+import { addMedication, addSite, getActiveTrackedItemCounts, removeMedication, removeSite, TrackedItemCounts } from '../lib/manageTrackedItems';
 import {
-  addMedication,
-  addSite,
-  addTrigger,
-  getActiveTrackedItemCounts,
-  removeMedication,
-  removeSite,
-  removeTrigger,
-  TrackedItemCounts,
-} from '../lib/manageTrackedItems';
+  addKnownTrigger,
+  customSearchableTrigger,
+  getSearchableTriggers,
+  markSearchableTriggerAdded,
+  markSearchableTriggerRemoved,
+  removeKnownTrigger,
+  type SearchableTrigger,
+  type TriggerRowCategory,
+} from '../lib/manageTriggers';
 import { getPermissionStatus, requestNotificationPermission } from '../lib/notificationPermissions';
 import { rescheduleNotifications } from '../lib/notificationScheduler';
 import { saveNotificationSettings } from '../lib/notificationSettingsStore';
@@ -65,6 +66,7 @@ export default function OnboardingScreen() {
   const [name, setName] = useState('');
   const [sites, setSites] = useState<DayEntrySite[]>([]);
   const [triggers, setTriggers] = useState<DayEntryTrigger[]>([]);
+  const [searchableTriggers, setSearchableTriggers] = useState<SearchableTrigger[]>([]);
   const [medications, setMedications] = useState<DayEntryMedication[]>([]);
 
   const [dailyEnabled, setDailyEnabled] = useState(false);
@@ -74,16 +76,21 @@ export default function OnboardingScreen() {
   const [counts, setCounts] = useState<TrackedItemCounts>({ sites: 0, triggers: 0, medications: 0 });
   const [finishing, setFinishing] = useState(false);
 
-  // Pre-populate from any existing data — addSite/addTrigger/addMedication
-  // have no DB-level uniqueness constraint on name, so an interrupted and
-  // resumed onboarding session without this would silently duplicate rows.
+  // Pre-populate from any existing data — addSite/addMedication have no
+  // DB-level uniqueness constraint on name (addKnownTrigger does dedupe/revive
+  // itself), so an interrupted and resumed onboarding session without this
+  // would silently duplicate site/medication rows.
   useEffect(() => {
     if (!activeUserId) return;
     let cancelled = false;
-    getDayEntry(db, activeUserId, todayISO()).then((entry) => {
+    Promise.all([
+      getDayEntry(db, activeUserId, todayISO()),
+      getSearchableTriggers(db, activeUserId),
+    ]).then(([entry, searchable]) => {
       if (cancelled) return;
       setSites(entry.sites);
       setTriggers(entry.triggers);
+      setSearchableTriggers(searchable);
       setMedications(entry.medications);
       setLoaded(true);
     });
@@ -156,14 +163,34 @@ export default function OnboardingScreen() {
     });
   };
 
-  const handleAddTrigger = async (triggerName: string) => {
-    if (!activeUserId) return;
-    const id = await addTrigger(db, activeUserId, triggerName);
-    setTriggers((prev) => [...prev, { id, name: triggerName, checked: true }]);
+  const handleSelectTriggerResult = async (result: SearchableTrigger) => {
+    if (!activeUserId || result.triggerId) return; // already on the list — nothing to do
+    const id = await addKnownTrigger(db, activeUserId, {
+      slug: result.slug,
+      label: result.label,
+      category: result.category,
+    });
+    setTriggers((prev) => [
+      ...prev,
+      { id, name: result.label, category: result.category, checked: false, watched: false },
+    ]);
+    setSearchableTriggers((prev) => markSearchableTriggerAdded(prev, result.key, id));
   };
+
+  const handleAddCustomTrigger = async (input: { label: string; category: TriggerRowCategory }) => {
+    if (!activeUserId) return;
+    const id = await addKnownTrigger(db, activeUserId, input);
+    setTriggers((prev) => [
+      ...prev,
+      { id, name: input.label, category: input.category, checked: false, watched: false },
+    ]);
+    setSearchableTriggers((prev) => [...prev, customSearchableTrigger(id, input)]);
+  };
+
   const handleRemoveTrigger = async (triggerId: string) => {
-    await removeTrigger(db, triggerId);
+    await removeKnownTrigger(db, triggerId);
     setTriggers((prev) => prev.filter((t) => t.id !== triggerId));
+    setSearchableTriggers((prev) => markSearchableTriggerRemoved(prev, triggerId));
   };
 
   const handleAddMedication = async (input: { name: string; deliveryMethod: string; frequency: string }) => {
@@ -250,7 +277,9 @@ export default function OnboardingScreen() {
         ) : step === STEP_TRIGGERS ? (
           <OnboardingTriggersStep
             triggers={triggers}
-            onAddTrigger={handleAddTrigger}
+            searchResults={searchableTriggers}
+            onSelectSearchResult={handleSelectTriggerResult}
+            onAddCustomTrigger={handleAddCustomTrigger}
             onRemoveTrigger={handleRemoveTrigger}
           />
         ) : step === STEP_MEDICATIONS ? (

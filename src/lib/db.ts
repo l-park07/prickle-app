@@ -11,4 +11,10 @@ export const dbReady = db.execAsync(SCHEMA_SQL).then(async () => {
   await ensureColumn(db, 'medications', 'delivery_method', 'TEXT');
   await ensureColumn(db, 'medications', 'frequency', 'TEXT');
   await ensureColumn(db, 'weekly_assessments', 'answers', 'TEXT');
+  await ensureColumn(db, 'triggers', 'slug', 'TEXT');
+  await ensureColumn(db, 'triggers', 'category', "TEXT NOT NULL DEFAULT 'other'");
+  await ensureColumn(db, 'experiments', 'trigger_id', 'TEXT REFERENCES triggers(id)');
+  await ensureColumn(db, 'experiments', 'start_date', 'TEXT');
+  await ensureColumn(db, 'experiments', 'end_date', 'TEXT');
+  await ensureColumn(db, 'experiments', 'note', 'TEXT');
 });
