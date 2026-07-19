@@ -2,10 +2,18 @@ import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { colors, spacing } from '../app/theme';
+import { colors, observationBands, spacing } from '../app/theme';
 import { useActiveUserId } from '../hooks/useActiveUserId';
-import { formatMonthYear, getMonthGrid, monthBounds, shiftMonth, WEEKDAY_LABELS } from '../lib/calendarMath';
-import { getMonthWorstSeverity } from '../lib/chartSelectors';
+import {
+  buildObservationBandsByDate,
+  formatMonthYear,
+  getMonthGrid,
+  monthBounds,
+  shiftMonth,
+  WEEKDAY_LABELS,
+  type ObservationBand,
+} from '../lib/calendarMath';
+import { getMonthObservations, getMonthWorstSeverity } from '../lib/chartSelectors';
 import { db } from '../lib/db';
 import { AppText } from './AppText';
 import { CalendarDay } from './CalendarDay';
@@ -21,6 +29,7 @@ export function MonthCalendar() {
   const now = new Date();
   const [{ year, month }, setVisibleMonth] = useState({ year: now.getFullYear(), month: now.getMonth() });
   const [severityByDate, setSeverityByDate] = useState<Record<string, number | null>>({});
+  const [observationBandsByDate, setObservationBandsByDate] = useState<Record<string, ObservationBand[]>>({});
   const [legendVisible, setLegendVisible] = useState(false);
 
   // useFocusEffect (not useEffect): the Log modal returns here via
@@ -33,8 +42,13 @@ export function MonthCalendar() {
       if (!activeUserId) return;
       let cancelled = false;
       const [from, to] = monthBounds(year, month);
-      getMonthWorstSeverity(db, activeUserId, from, to).then((result) => {
-        if (!cancelled) setSeverityByDate(result);
+      Promise.all([
+        getMonthWorstSeverity(db, activeUserId, from, to),
+        getMonthObservations(db, activeUserId, from, to),
+      ]).then(([severity, windows]) => {
+        if (cancelled) return;
+        setSeverityByDate(severity);
+        setObservationBandsByDate(buildObservationBandsByDate(windows, from, to, observationBands.length));
       });
       return () => {
         cancelled = true;
@@ -93,6 +107,7 @@ export function MonthCalendar() {
                     day={cell.day}
                     iso={cell.iso}
                     worst={severityByDate[cell.iso]}
+                    bands={observationBandsByDate[cell.iso]}
                     isToday={cell.iso === today}
                     onPress={() => router.push({ pathname: '/today', params: { date: cell.iso } })}
                   />
@@ -117,7 +132,11 @@ export function MonthCalendar() {
         </Pressable>
       </Card>
 
-      <CalendarLegend visible={legendVisible} onClose={() => setLegendVisible(false)} />
+      <CalendarLegend
+        visible={legendVisible}
+        onClose={() => setLegendVisible(false)}
+        showObservationNote={Object.keys(observationBandsByDate).length > 0}
+      />
     </View>
   );
 }

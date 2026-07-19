@@ -35,6 +35,13 @@ export const palette = {
   oliveGreen: '#a9bd7f', // score 2
   softOchre: '#d9ab5f', //score 3
   clay: '#c8a99a', //score 4
+
+  // Cool blues/violets — deliberately the only non-warm hues in the palette,
+  // reserved for calendar observation bands so they can never be mistaken
+  // for a severity/clear/notScored color at a glance.
+  dusk: '#7d8fae', // muted slate-blue
+  harbor: '#5f7a8c', // muted teal-blue, darker
+  thistle: '#8f7ba8', // muted blue-violet
 } as const;
 
 // 2) SEMANTIC COLORS — what things ARE, not what color they happen to be.
@@ -97,6 +104,13 @@ export const notRecordedColor = palette.inkSoft;
 // reads as "clear" or as a severity value.
 export const notScoredBorder = palette.clay;
 
+// Calendar-only: thin bands drawn under a day's numeral when it falls inside
+// an active trigger-observation window. A stable color is assigned per
+// window (see buildObservationBandsByDate in calendarMath.ts) by cycling
+// through this list — deliberately cool-hued so a band never reads as a
+// severity color.
+export const observationBands: string[] = [palette.dusk, palette.harbor, palette.thistle];
+
 // 4) TYPOGRAPHY — this is where Open Sans lives, so <AppText> stops hardcoding it.
 //    Every key here must have a matching entry in `fontAssets` below, or it'll
 //    silently fall back to the system font when unregistered.
@@ -139,6 +153,7 @@ export const theme = {
   clearColor,
   notRecordedColor,
   notScoredBorder,
+  observationBands,
   fontFamily,
   fontAssets,
   typography,

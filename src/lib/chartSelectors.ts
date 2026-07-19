@@ -6,7 +6,7 @@
  * Changing time scale = the date filter + whether you aggregate.
  */
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { todayISO } from './calendarMath';
+import { todayISO, type ObservationWindow } from './calendarMath';
 
 /** A tidy data point most chart libraries can consume directly. */
 export interface SeriesPoint {
@@ -140,6 +140,33 @@ export async function getMonthWorstSeverity(
 }
 
 /**
+ * Active trigger-observation windows (experiments rows with a trigger_id/
+ * start_date/end_date) overlapping a date range — for the calendar's
+ * observation bands. A window covers a date regardless of whether that date
+ * has a daily_logs row.
+ */
+export async function getMonthObservations(
+  db: SQLiteDatabase,
+  userId: string,
+  from: string,
+  to: string
+): Promise<ObservationWindow[]> {
+  const rows = await db.getAllAsync<{ id: string; label: string; start_date: string; end_date: string }>(
+    `SELECT e.id AS id, t.name AS label, e.start_date AS start_date, e.end_date AS end_date
+       FROM experiments e
+       JOIN triggers t ON t.id = e.trigger_id
+      WHERE e.user_id = ?
+        AND e.deleted_at IS NULL
+        AND e.trigger_id IS NOT NULL
+        AND e.start_date IS NOT NULL AND e.end_date IS NOT NULL
+        AND e.start_date <= ? AND e.end_date >= ?
+      ORDER BY e.start_date ASC, e.id ASC`,
+    [userId, to, from]
+  );
+  return rows.map((r) => ({ id: r.id, label: r.label, startDate: r.start_date, endDate: r.end_date }));
+}
+
+/**
  * Cheap existence check — a non-deleted daily_logs row for this exact date,
  * without getDayEntry's full sites/triggers/medications/photos joins.
  * Used to decide whether a day still needs its daily reminder (don't nudge
@@ -169,6 +196,9 @@ export interface DayEntryTrigger {
   /** true iff there's a live observation window (an experiments row with
    *  trigger_id = this, deleted_at IS NULL, end_date in the future). */
   watched: boolean;
+  /** The live observation window's start/end date, present iff watched is true. */
+  observationStart: string | null;
+  observationEnd: string | null;
 }
 
 export interface DayEntryMedication {
@@ -243,18 +273,26 @@ export async function getDayEntry(
     category: string;
     checked: number;
     watched: number;
+    observation_start: string | null;
+    observation_end: string | null;
   }>(
     `SELECT t.id, t.name, t.category,
             CASE WHEN lt.id IS NOT NULL THEN 1 ELSE 0 END AS checked,
             CASE WHEN EXISTS (
               SELECT 1 FROM experiments e
                WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
-            ) THEN 1 ELSE 0 END AS watched
+            ) THEN 1 ELSE 0 END AS watched,
+            (SELECT e.start_date FROM experiments e
+              WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
+              ORDER BY e.start_date DESC LIMIT 1) AS observation_start,
+            (SELECT e.end_date FROM experiments e
+              WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
+              ORDER BY e.start_date DESC LIMIT 1) AS observation_end
        FROM triggers t
        LEFT JOIN log_triggers lt ON lt.trigger_id = t.id AND lt.log_id = ? AND lt.deleted_at IS NULL
       WHERE t.user_id = ? AND t.is_active = 1 AND t.deleted_at IS NULL
       ORDER BY watched DESC, t.name ASC`,
-    [todayISO(), logId, userId]
+    [todayISO(), todayISO(), todayISO(), logId, userId]
   );
 
   const medicationRows = await db.getAllAsync<{
@@ -299,6 +337,8 @@ export async function getDayEntry(
       category: r.category,
       checked: r.checked === 1,
       watched: r.watched === 1,
+      observationStart: r.observation_start,
+      observationEnd: r.observation_end,
     })),
     medications: medicationRows.map((r) => ({
       id: r.id,

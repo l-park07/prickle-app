@@ -156,7 +156,7 @@ export const TRIGGER_CATALOG: TriggerCategory[] = [
   },
   {
     id: 'applying',
-    label: 'Cosmetics & irritants',
+    label: 'Cosmetics & Chemicals',
     gerund: 'Applying',
     blurb: '[why things you apply matter — one line]',
     note: '[importance of patch testing — one or two lines]',

@@ -2,6 +2,7 @@ import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { colors, radius, spacing } from '../app/theme';
+import { daysBetween, todayISO } from '../lib/calendarMath';
 import { DayEntryTrigger } from '../lib/chartSelectors';
 import {
   CATEGORY_LABELS,
@@ -102,6 +103,15 @@ export function LogTriggersSection({
                 badge={trigger.watched ? 'Watching' : undefined}
                 onToggle={() => onToggle(trigger.id)}
               />
+              {trigger.watched && trigger.observationStart && trigger.observationEnd ? (
+                <AppText variant="caption" color={colors.textSecondary}>
+                  {Math.min(
+                    daysBetween(trigger.observationStart, todayISO()) + 1,
+                    daysBetween(trigger.observationStart, trigger.observationEnd)
+                  )}{' '}
+                  of {daysBetween(trigger.observationStart, trigger.observationEnd)} days observed
+                </AppText>
+              ) : null}
             </View>
             <Pressable
               onPress={() => confirmRemove(trigger)}

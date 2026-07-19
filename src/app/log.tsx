@@ -109,7 +109,15 @@ export default function LogModal() {
     });
     setTriggers((prev) => [
       ...prev,
-      { id, name: result.label, category: result.category, checked: true, watched: false },
+      {
+        id,
+        name: result.label,
+        category: result.category,
+        checked: true,
+        watched: false,
+        observationStart: null,
+        observationEnd: null,
+      },
     ]);
     setSearchableTriggers((prev) => markSearchableTriggerAdded(prev, result.key, id));
   };
@@ -119,7 +127,15 @@ export default function LogModal() {
     const id = await addKnownTrigger(db, activeUserId, input);
     setTriggers((prev) => [
       ...prev,
-      { id, name: input.label, category: input.category, checked: true, watched: false },
+      {
+        id,
+        name: input.label,
+        category: input.category,
+        checked: true,
+        watched: false,
+        observationStart: null,
+        observationEnd: null,
+      },
     ]);
     setSearchableTriggers((prev) => [...prev, customSearchableTrigger(id, input)]);
   };

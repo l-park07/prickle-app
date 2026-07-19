@@ -1,14 +1,19 @@
 import { Pressable, StyleSheet } from 'react-native';
 import { colors, radius } from '../app/theme';
-import { formatAccessibleDate } from '../lib/calendarMath';
+import { formatAccessibleDate, type ObservationBand } from '../lib/calendarMath';
 import { AppText } from './AppText';
+import { ObservationBandOverlay } from './ObservationBandOverlay';
 import { SeverityCell } from './SeverityCell';
+
+const MAX_VISIBLE_BANDS = 3;
 
 interface CalendarDayProps {
   day: number;
   iso: string;
   /** getMonthWorstSeverity's per-date value: undefined (key absent) = no log, null = logged but no site scored, 0 = all clear, 1-5 = worst score. */
   worst: number | null | undefined;
+  /** Active trigger-observation windows covering this date, if any — independent of whether the day was logged. */
+  bands?: ObservationBand[];
   isToday: boolean;
   onPress: () => void;
 }
@@ -22,8 +27,10 @@ function describeState(worst: number | null | undefined): string {
 }
 
 /** One calendar day cell. Visual state (fill/border/numeral color) always has a matching accessibilityLabel. */
-export function CalendarDay({ day, iso, worst, isToday, onPress }: CalendarDayProps) {
-  const label = `${formatAccessibleDate(iso)}, ${describeState(worst)}`;
+export function CalendarDay({ day, iso, worst, bands, isToday, onPress }: CalendarDayProps) {
+  const visibleBands = bands?.slice(0, MAX_VISIBLE_BANDS) ?? [];
+  const observedClause = visibleBands.length ? `, watching ${visibleBands.map((b) => b.label).join(', ')}` : '';
+  const label = `${formatAccessibleDate(iso)}, ${describeState(worst)}${observedClause}`;
   const numeralColor =
     worst === 0
       ? colors.textInverse
@@ -41,6 +48,7 @@ export function CalendarDay({ day, iso, worst, isToday, onPress }: CalendarDayPr
       style={[styles.cell, isToday ? styles.today : null]}
     >
       <SeverityCell worst={worst} style={styles.fill} cornerRadius={CELL_CORNER_RADIUS}>
+        {visibleBands.length > 0 ? <ObservationBandOverlay bands={visibleBands} /> : null}
         <AppText variant="body" color={numeralColor}>
           {day}
         </AppText>

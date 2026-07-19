@@ -1,12 +1,14 @@
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, overlay, radius, spacing } from '../app/theme';
+import { colors, observationBands, overlay, radius, spacing } from '../app/theme';
 import { AppText } from './AppText';
 import { SeverityCell } from './SeverityCell';
 
 interface CalendarLegendProps {
   visible: boolean;
   onClose: () => void;
+  /** Show the observation-band explanation — only when the visible month has at least one active window. */
+  showObservationNote?: boolean;
 }
 
 const SWATCH_SIZE = 32;
@@ -20,7 +22,7 @@ const SEVERITY_LABELS: Record<1 | 2 | 3 | 4 | 5, string> = {
 };
 
 /** Bottom sheet explaining what the calendar's colors/borders mean. */
-export function CalendarLegend({ visible, onClose }: CalendarLegendProps) {
+export function CalendarLegend({ visible, onClose, showObservationNote }: CalendarLegendProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -66,6 +68,21 @@ export function CalendarLegend({ visible, onClose }: CalendarLegendProps) {
                 <AppText variant="body">No log that day — that's alright</AppText>
               </View>
             </View>
+
+            {showObservationNote ? (
+              <>
+                <View style={styles.divider} />
+                <View style={styles.rows}>
+                  <View style={styles.row}>
+                    <View style={[styles.swatch, styles.bandSample, { backgroundColor: observationBands[0] }]} />
+                    <AppText variant="body">
+                      A thin colored band under the date means you're closely watching one of your triggers that
+                      day.
+                    </AppText>
+                  </View>
+                </View>
+              </>
+            ) : null}
           </ScrollView>
         </View>
       </View>
@@ -102,6 +119,10 @@ const styles = StyleSheet.create({
   swatch: {
     width: SWATCH_SIZE,
     height: SWATCH_SIZE,
+  },
+  bandSample: {
+    height: 6,
+    borderRadius: 3,
   },
   divider: {
     height: 1,

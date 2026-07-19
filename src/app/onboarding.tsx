@@ -172,7 +172,15 @@ export default function OnboardingScreen() {
     });
     setTriggers((prev) => [
       ...prev,
-      { id, name: result.label, category: result.category, checked: false, watched: false },
+      {
+        id,
+        name: result.label,
+        category: result.category,
+        checked: false,
+        watched: false,
+        observationStart: null,
+        observationEnd: null,
+      },
     ]);
     setSearchableTriggers((prev) => markSearchableTriggerAdded(prev, result.key, id));
   };
@@ -182,7 +190,15 @@ export default function OnboardingScreen() {
     const id = await addKnownTrigger(db, activeUserId, input);
     setTriggers((prev) => [
       ...prev,
-      { id, name: input.label, category: input.category, checked: false, watched: false },
+      {
+        id,
+        name: input.label,
+        category: input.category,
+        checked: false,
+        watched: false,
+        observationStart: null,
+        observationEnd: null,
+      },
     ]);
     setSearchableTriggers((prev) => [...prev, customSearchableTrigger(id, input)]);
   };

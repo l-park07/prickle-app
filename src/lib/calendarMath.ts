@@ -86,6 +86,11 @@ export function formatLongDate(iso: string): string {
   return `${MONTH_LONG_NAME_FORMATTER.format(date)} ${ordinal(day)}`;
 }
 
+/** Whole days between two 'YYYY-MM-DD' strings (positive if `toISO` is later). */
+export function daysBetween(fromISO: string, toISO: string): number {
+  return Math.round((parseISODate(toISO).getTime() - parseISODate(fromISO).getTime()) / 86400000);
+}
+
 /** Adjacent month, handling year rollover in both directions. */
 export function shiftMonth(year: number, month: number, delta: number): { year: number; month: number } {
   const total = year * 12 + month + delta;
@@ -133,4 +138,56 @@ export function getMonthGrid(year: number, month: number): (CalendarCell | null)
     weeks.push(cells.slice(i, i + 7));
   }
   return weeks;
+}
+
+/** One active trigger-observation window overlapping a date range — see getMonthObservations in chartSelectors.ts. */
+export interface ObservationWindow {
+  id: string;
+  label: string;
+  startDate: string;
+  endDate: string;
+}
+
+/** A window's band as it applies to one specific date, with its assigned color slot. */
+export interface ObservationBand {
+  id: string;
+  label: string;
+  colorIndex: number;
+}
+
+/** djb2-style string hash so a window's assigned color is stable across renders
+ *  and never shifts when a sibling window is added/removed — unlike a sort-position
+ *  based assignment, which would reflow other windows' colors whenever a new
+ *  earlier-starting window appears. */
+function hashToIndex(id: string, mod: number): number {
+  let hash = 5381;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 33 + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % mod;
+}
+
+/**
+ * Buckets active observation windows by every date they cover within [from,to]
+ * (inclusive), independent of whether that date has a log — an observation
+ * covers calendar dates, not daily_logs rows. Each window gets a stable
+ * colorIndex (see hashToIndex) so the Home calendar can render it as a band
+ * without ever hardcoding a color in the component.
+ */
+export function buildObservationBandsByDate(
+  windows: ObservationWindow[],
+  from: string,
+  to: string,
+  bandCount: number
+): Record<string, ObservationBand[]> {
+  const byDate: Record<string, ObservationBand[]> = {};
+  for (const w of windows) {
+    const colorIndex = hashToIndex(w.id, bandCount);
+    const start = w.startDate < from ? from : w.startDate;
+    const end = w.endDate > to ? to : w.endDate;
+    for (let cursor = start; cursor <= end; cursor = shiftISODate(cursor, 1)) {
+      (byDate[cursor] ??= []).push({ id: w.id, label: w.label, colorIndex });
+    }
+  }
+  return byDate;
 }
