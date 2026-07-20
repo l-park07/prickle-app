@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
+import type { ImageSourcePropType } from 'react-native';
 import { spacing } from '../app/theme';
 import { useActiveUserId } from '../hooks/useActiveUserId';
 import { getDailyCactusImage } from '../../content/getDailyCactus';
@@ -9,7 +10,7 @@ import { AppText } from './AppText';
 
 interface DailyPick {
   message: PrickleMessage | null;
-  cactus: number;
+  cactus: ImageSourcePropType;
 }
 
 /**
@@ -22,11 +23,15 @@ export function DailyCactusMessage() {
 
   useEffect(() => {
     if (!activeUserId) return;
+    let cancelled = false;
     const todayISO = new Date().toISOString().slice(0, 10);
-    setPick({
-      message: getDailyMessageAlternating(activeUserId, todayISO),
-      cactus: getDailyCactusImage(activeUserId, todayISO),
+    const message = getDailyMessageAlternating(activeUserId, todayISO);
+    getDailyCactusImage(activeUserId, todayISO).then((cactus) => {
+      if (!cancelled) setPick({ message, cactus });
     });
+    return () => {
+      cancelled = true;
+    };
   }, [activeUserId]);
 
   if (!pick) return null;

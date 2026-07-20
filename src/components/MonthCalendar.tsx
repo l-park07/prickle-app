@@ -1,6 +1,6 @@
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { colors, observationBands, spacing } from '../app/theme';
 import { useActiveUserId } from '../hooks/useActiveUserId';
@@ -58,6 +58,16 @@ export function MonthCalendar() {
 
   const weeks = getMonthGrid(year, month);
   const today = todayISO();
+
+  // Unique bands across the visible month, for the legend's "Watching: X" rows —
+  // observationBandsByDate repeats each window once per date it covers.
+  const activeObservations = useMemo(() => {
+    const byId = new Map<string, ObservationBand>();
+    for (const bands of Object.values(observationBandsByDate)) {
+      for (const band of bands) byId.set(band.id, band);
+    }
+    return Array.from(byId.values());
+  }, [observationBandsByDate]);
 
   return (
     <View style={styles.container}>
@@ -135,7 +145,7 @@ export function MonthCalendar() {
       <CalendarLegend
         visible={legendVisible}
         onClose={() => setLegendVisible(false)}
-        showObservationNote={Object.keys(observationBandsByDate).length > 0}
+        activeObservations={activeObservations}
       />
     </View>
   );

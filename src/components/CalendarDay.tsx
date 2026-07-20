@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { colors, radius } from '../app/theme';
 import { formatAccessibleDate, type ObservationBand } from '../lib/calendarMath';
 import { AppText } from './AppText';
@@ -41,18 +41,18 @@ export function CalendarDay({ day, iso, worst, bands, isToday, onPress }: Calend
           : colors.textInverse;
 
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={[styles.cell, isToday ? styles.today : null]}
-    >
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={styles.cell}>
       <SeverityCell worst={worst} style={styles.fill} cornerRadius={CELL_CORNER_RADIUS}>
         {visibleBands.length > 0 ? <ObservationBandOverlay bands={visibleBands} /> : null}
         <AppText variant="body" color={numeralColor}>
           {day}
         </AppText>
       </SeverityCell>
+      {/* A separate absolutely-positioned overlay, not a border on styles.cell itself —
+          that node also carries flex+aspectRatio for the grid's square sizing, and combining
+          a border with aspectRatio on the same node broke the numeral's layout (it stopped
+          rendering) for today's cell specifically. */}
+      {isToday ? <View style={[StyleSheet.absoluteFill, styles.todayRing]} pointerEvents="none" /> : null}
     </Pressable>
   );
 }
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignSelf: 'stretch',
   },
-  today: {
+  todayRing: {
     borderWidth: 2,
     borderColor: colors.accent,
     borderRadius: CELL_CORNER_RADIUS,

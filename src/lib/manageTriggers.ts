@@ -300,6 +300,132 @@ export async function endObservation(db: SQLiteDatabase, experimentId: string): 
   );
 }
 
+export interface ObservationHistoryItem {
+  experimentId: string;
+  triggerId: string;
+  label: string;
+  category: TriggerRowCategory;
+  startDate: string;
+  endDate: string;
+}
+
+/** Ended (end_date <= today) AND reviewed windows, most recent first — the Triggers Watch Archive. */
+export async function getObservationHistory(
+  db: SQLiteDatabase,
+  userId: string
+): Promise<ObservationHistoryItem[]> {
+  return db.getAllAsync<ObservationHistoryItem>(
+    `SELECT e.id AS experimentId, e.trigger_id AS triggerId, t.name AS label, t.category AS category,
+            e.start_date AS startDate, e.end_date AS endDate
+       FROM experiments e
+       JOIN triggers t ON t.id = e.trigger_id
+      WHERE t.user_id = ? AND e.deleted_at IS NULL AND e.end_date <= ? AND e.reviewed_at IS NOT NULL
+      ORDER BY e.end_date DESC`,
+    [userId, todayISO()]
+  );
+}
+
+/** Ended but not-yet-reviewed windows — drives the end-of-period add/remove + note prompt. */
+export async function getPendingReviewObservations(
+  db: SQLiteDatabase,
+  userId: string
+): Promise<ObservationHistoryItem[]> {
+  return db.getAllAsync<ObservationHistoryItem>(
+    `SELECT e.id AS experimentId, e.trigger_id AS triggerId, t.name AS label, t.category AS category,
+            e.start_date AS startDate, e.end_date AS endDate
+       FROM experiments e
+       JOIN triggers t ON t.id = e.trigger_id
+      WHERE t.user_id = ? AND e.deleted_at IS NULL AND e.end_date <= ? AND e.reviewed_at IS NULL
+      ORDER BY e.end_date ASC`,
+    [userId, todayISO()]
+  );
+}
+
+export interface CompleteObservationReviewInput {
+  experimentId: string;
+  triggerId: string;
+  /** false removes the trigger from "Your triggers" (via removeKnownTrigger); true leaves it as-is. */
+  keepTrigger: boolean;
+  /** Optional closing note, saved the same way as a mid-observation note. */
+  note?: string;
+}
+
+/**
+ * Completes the end-of-window prompt: stamps reviewed_at so it stops showing
+ * up as pending and moves into the archive, optionally removes the trigger,
+ * and optionally saves a closing note.
+ */
+export async function completeObservationReview(
+  db: SQLiteDatabase,
+  userId: string,
+  input: CompleteObservationReviewInput
+): Promise<void> {
+  const ts = now();
+  await db.runAsync(`UPDATE experiments SET reviewed_at = ?, updated_at = ? WHERE id = ?`, [
+    ts,
+    ts,
+    input.experimentId,
+  ]);
+  if (!input.keepTrigger) {
+    await removeKnownTrigger(db, input.triggerId);
+  }
+  const note = input.note?.trim();
+  if (note) {
+    await addObservationNote(db, userId, input.experimentId, note);
+  }
+}
+
+export interface ObservationNote {
+  id: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Notes for one watch window, newest first. */
+export async function getObservationNotes(
+  db: SQLiteDatabase,
+  experimentId: string
+): Promise<ObservationNote[]> {
+  return db.getAllAsync<ObservationNote>(
+    `SELECT id, body, created_at AS createdAt, COALESCE(updated_at, created_at) AS updatedAt
+       FROM observation_notes
+      WHERE experiment_id = ? AND deleted_at IS NULL
+      ORDER BY created_at DESC`,
+    [experimentId]
+  );
+}
+
+/** Adds a date-stamped note to a watch window, mid-observation or from the archive. */
+export async function addObservationNote(
+  db: SQLiteDatabase,
+  userId: string,
+  experimentId: string,
+  body: string
+): Promise<string> {
+  const id = uuid();
+  const ts = now();
+  await db.runAsync(
+    `INSERT INTO observation_notes (id, user_id, experiment_id, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    [id, userId, experimentId, body.trim(), ts, ts]
+  );
+  return id;
+}
+
+/** Edits an existing note's text. */
+export async function updateObservationNote(db: SQLiteDatabase, noteId: string, body: string): Promise<void> {
+  await db.runAsync(`UPDATE observation_notes SET body = ?, updated_at = ? WHERE id = ?`, [
+    body.trim(),
+    now(),
+    noteId,
+  ]);
+}
+
+/** Soft-deletes a note. */
+export async function deleteObservationNote(db: SQLiteDatabase, noteId: string): Promise<void> {
+  await db.runAsync(`UPDATE observation_notes SET deleted_at = ? WHERE id = ?`, [now(), noteId]);
+}
+
 // --- Local search-index reconciliation ------------------------------------
 // Pure helpers so every screen that keeps its own optimistic copy of
 // getSearchableTriggers' result (Log modal, onboarding, ...) updates it the

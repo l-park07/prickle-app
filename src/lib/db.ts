@@ -17,4 +17,6 @@ export const dbReady = db.execAsync(SCHEMA_SQL).then(async () => {
   await ensureColumn(db, 'experiments', 'start_date', 'TEXT');
   await ensureColumn(db, 'experiments', 'end_date', 'TEXT');
   await ensureColumn(db, 'experiments', 'note', 'TEXT');
+  await ensureColumn(db, 'experiments', 'reviewed_at', 'TEXT');
+  await ensureColumn(db, 'observation_notes', 'updated_at', 'TEXT');
 });

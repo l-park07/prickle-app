@@ -8,6 +8,7 @@ import { LogMoodSection } from '../components/LogMoodSection';
 import { LogSitesSection } from '../components/LogSitesSection';
 import { LogTriggersSection } from '../components/LogTriggersSection';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { ObservationNotesModal, type ObservationNotesTarget } from '../components/triggers/ObservationNotesModal';
 import { useActiveUserId } from '../hooks/useActiveUserId';
 import { formatFullFriendlyDate } from '../lib/calendarMath';
 import {
@@ -16,6 +17,7 @@ import {
   DayEntrySite,
   DayEntryTrigger,
   getDayEntry,
+  getPreviousDayEntry,
 } from '../lib/chartSelectors';
 import { db } from '../lib/db';
 import { insertDailyLog } from '../lib/insertDailyLog';
@@ -49,6 +51,7 @@ export default function LogModal() {
   const [logId, setLogId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [notesTarget, setNotesTarget] = useState<ObservationNotesTarget | null>(null);
 
   useEffect(() => {
     if (!activeUserId || !date) return;
@@ -56,13 +59,50 @@ export default function LogModal() {
     Promise.all([
       getDayEntry(db, activeUserId, date),
       getSearchableTriggers(db, activeUserId),
-    ]).then(([entry, searchable]) => {
+    ]).then(async ([entry, searchable]) => {
       if (cancelled) return;
-      setSites(entry.sites);
-      setMood(entry.mood ?? 3);
-      setTriggers(entry.triggers);
+
+      let sitesToSet = entry.sites;
+      let triggersToSet = entry.triggers;
+      let medicationsToSet = entry.medications;
+      let moodToSet = entry.mood ?? 3;
+
+      // Brand-new day: borrow the most recent previous log's values so
+      // logging is faster. Never runs when the day already has an entry.
+      if (entry.logId === null) {
+        const previous = await getPreviousDayEntry(db, activeUserId, date);
+        if (cancelled) return;
+        if (previous) {
+          const prevScoreById = new Map(previous.sites.map((s) => [s.id, s.score]));
+          sitesToSet = entry.sites.map((s) =>
+            prevScoreById.has(s.id) ? { ...s, score: prevScoreById.get(s.id)! } : s
+          );
+
+          const prevCheckedTriggerById = new Map(previous.triggers.map((t) => [t.id, t.checked]));
+          triggersToSet = entry.triggers.map((t) =>
+            prevCheckedTriggerById.has(t.id)
+              ? { ...t, checked: prevCheckedTriggerById.get(t.id)! }
+              : t
+          );
+
+          const prevCheckedMedicationById = new Map(
+            previous.medications.map((m) => [m.id, m.checked])
+          );
+          medicationsToSet = entry.medications.map((m) =>
+            prevCheckedMedicationById.has(m.id)
+              ? { ...m, checked: prevCheckedMedicationById.get(m.id)! }
+              : m
+          );
+
+          moodToSet = previous.mood ?? moodToSet;
+        }
+      }
+
+      setSites(sitesToSet);
+      setMood(moodToSet);
+      setTriggers(triggersToSet);
       setSearchableTriggers(searchable);
-      setMedications(entry.medications);
+      setMedications(medicationsToSet);
       setPhotos(entry.photos);
       setLogId(entry.logId);
       setLoaded(true);
@@ -117,6 +157,7 @@ export default function LogModal() {
         watched: false,
         observationStart: null,
         observationEnd: null,
+        experimentId: null,
       },
     ]);
     setSearchableTriggers((prev) => markSearchableTriggerAdded(prev, result.key, id));
@@ -135,6 +176,7 @@ export default function LogModal() {
         watched: false,
         observationStart: null,
         observationEnd: null,
+        experimentId: null,
       },
     ]);
     setSearchableTriggers((prev) => [...prev, customSearchableTrigger(id, input)]);
@@ -144,6 +186,18 @@ export default function LogModal() {
     await removeKnownTrigger(db, triggerId);
     setTriggers((prev) => prev.filter((t) => t.id !== triggerId));
     setSearchableTriggers((prev) => markSearchableTriggerRemoved(prev, triggerId));
+  };
+
+  const handleAddNote = (trigger: DayEntryTrigger) => {
+    if (!trigger.experimentId || !trigger.observationStart || !trigger.observationEnd) return;
+    setNotesTarget({
+      experimentId: trigger.experimentId,
+      label: trigger.name,
+      category: trigger.category as TriggerRowCategory,
+      startDate: trigger.observationStart,
+      endDate: trigger.observationEnd,
+      autoCompose: true,
+    });
   };
 
   const handleToggleMedication = (medicationId: string) => {
@@ -179,7 +233,7 @@ export default function LogModal() {
     const id = await insertDailyLog(db, {
       userId: activeUserId!,
       date: date!,
-      stress: null,
+      stress: null, // no stress control in this screen yet — getPreviousDayEntry already returns it for whenever one is added
       mood,
       siteScores: Object.fromEntries(sites.map((s) => [s.id, s.score])),
       medicationIds: medications.filter((m) => m.checked).map((m) => m.id),
@@ -233,40 +287,45 @@ export default function LogModal() {
   if (!loaded) return null;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      {date ? (
-        <AppText variant="h2" style={styles.dateHeading}>
-          {formatFullFriendlyDate(date)}
-        </AppText>
-      ) : null}
-      <Card style={styles.entryCard}>
-        <LogSitesSection
-          sites={sites}
-          photos={photos}
-          onChangeScore={handleChangeScore}
-          onAddSite={handleAddSite}
-          onRemoveSite={handleRemoveSite}
-          onAddPhoto={handleAddPhoto}
-          onRemovePhoto={handleRemovePhoto}
-        />
-        <LogMoodSection mood={mood} onChange={setMood} />
-        <LogTriggersSection
-          triggers={triggers}
-          searchResults={searchableTriggers}
-          onToggle={handleToggleTrigger}
-          onSelectSearchResult={handleSelectTriggerResult}
-          onAddCustomTrigger={handleAddCustomTrigger}
-          onRemoveTrigger={handleRemoveTrigger}
-        />
-        <LogMedicationsSection
-          medications={medications}
-          onToggle={handleToggleMedication}
-          onAddMedication={handleAddMedication}
-          onRemoveMedication={handleRemoveMedication}
-        />
-        <PrimaryButton label="Save" onPress={handleSave} loading={saving} />
-      </Card>
-    </ScrollView>
+    <>
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+        {date ? (
+          <AppText variant="h2" style={styles.dateHeading}>
+            {formatFullFriendlyDate(date)}
+          </AppText>
+        ) : null}
+        <Card style={styles.entryCard}>
+          <LogSitesSection
+            sites={sites}
+            photos={photos}
+            onChangeScore={handleChangeScore}
+            onAddSite={handleAddSite}
+            onRemoveSite={handleRemoveSite}
+            onAddPhoto={handleAddPhoto}
+            onRemovePhoto={handleRemovePhoto}
+          />
+          <LogMoodSection mood={mood} onChange={setMood} />
+          <LogTriggersSection
+            triggers={triggers}
+            searchResults={searchableTriggers}
+            onToggle={handleToggleTrigger}
+            onSelectSearchResult={handleSelectTriggerResult}
+            onAddCustomTrigger={handleAddCustomTrigger}
+            onRemoveTrigger={handleRemoveTrigger}
+            onAddNote={handleAddNote}
+          />
+          <LogMedicationsSection
+            medications={medications}
+            onToggle={handleToggleMedication}
+            onAddMedication={handleAddMedication}
+            onRemoveMedication={handleRemoveMedication}
+          />
+          <PrimaryButton label="Save" onPress={handleSave} loading={saving} />
+        </Card>
+      </ScrollView>
+
+      <ObservationNotesModal target={notesTarget} onClose={() => setNotesTarget(null)} />
+    </>
   );
 }
 

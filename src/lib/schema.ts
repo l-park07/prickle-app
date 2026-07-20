@@ -69,22 +69,40 @@ CREATE TABLE IF NOT EXISTS triggers (
 -- Also doubles as a trigger's observation window: trigger_id/start_date/end_date
 -- are set when the user starts "watching" a trigger from the Triggers tab. A
 -- trigger counts as watched while a row here has trigger_id = that trigger,
--- deleted_at IS NULL, and end_date in the future.
+-- deleted_at IS NULL, and end_date in the future. Once end_date has passed,
+-- reviewed_at stays NULL until the end-of-window prompt is completed (see
+-- getPendingReviewObservations in manageTriggers.ts) — that's what separates
+-- "ended, needs review" from "archived" on the Triggers tab.
 CREATE TABLE IF NOT EXISTS experiments (
-  id          TEXT PRIMARY KEY,
-  user_id     TEXT,
-  name        TEXT NOT NULL,
-  hypothesis  TEXT,
-  started_on  TEXT,                          -- 'YYYY-MM-DD'
-  ended_on    TEXT,
-  trigger_id  TEXT REFERENCES triggers(id),  -- set when this row is a trigger's watch window
-  start_date  TEXT,                          -- 'YYYY-MM-DD', watch window start
-  end_date    TEXT,                          -- 'YYYY-MM-DD', watch window end (start + 14 days minimum)
-  note        TEXT,                          -- optional end-of-window note; nothing writes this yet
-  created_at  TEXT NOT NULL,
-  updated_at  TEXT NOT NULL,
-  deleted_at  TEXT
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT,
+  name         TEXT NOT NULL,
+  hypothesis   TEXT,
+  started_on   TEXT,                          -- 'YYYY-MM-DD'
+  ended_on     TEXT,
+  trigger_id   TEXT REFERENCES triggers(id),  -- set when this row is a trigger's watch window
+  start_date   TEXT,                          -- 'YYYY-MM-DD', watch window start
+  end_date     TEXT,                          -- 'YYYY-MM-DD', watch window end (start + 14 days minimum)
+  note         TEXT,                          -- optional end-of-window note; nothing writes this yet
+  reviewed_at  TEXT,                          -- set once the end-of-window add/remove + note prompt is completed
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  deleted_at   TEXT
 );
+
+-- Free-text, date-stamped notes a user leaves against a trigger's watch window
+-- (experiments row), added either mid-observation or from the Triggers Watch
+-- Archive. Many-to-one so a window can carry a running log, not just one note.
+CREATE TABLE IF NOT EXISTS observation_notes (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT,
+  experiment_id TEXT NOT NULL REFERENCES experiments(id),
+  body          TEXT NOT NULL,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  deleted_at    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_observation_notes_experiment ON observation_notes(experiment_id);
 
 -- --- Daily logging ---------------------------------------------------------
 

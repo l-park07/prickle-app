@@ -180,6 +180,7 @@ export default function OnboardingScreen() {
         watched: false,
         observationStart: null,
         observationEnd: null,
+        experimentId: null,
       },
     ]);
     setSearchableTriggers((prev) => markSearchableTriggerAdded(prev, result.key, id));
@@ -198,6 +199,7 @@ export default function OnboardingScreen() {
         watched: false,
         observationStart: null,
         observationEnd: null,
+        experimentId: null,
       },
     ]);
     setSearchableTriggers((prev) => [...prev, customSearchableTrigger(id, input)]);

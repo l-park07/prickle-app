@@ -12,6 +12,7 @@ import {
   getReactNativePersistence,
   type Auth,
 } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Config comes from EXPO_PUBLIC_ env vars (see .env.example).
@@ -39,4 +40,6 @@ try {
   auth = getAuth(app);
 }
 
-export { app, auth };
+const storage = getStorage(app);
+
+export { app, auth, storage };

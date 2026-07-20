@@ -155,10 +155,8 @@ export interface ObservationBand {
   colorIndex: number;
 }
 
-/** djb2-style string hash so a window's assigned color is stable across renders
- *  and never shifts when a sibling window is added/removed — unlike a sort-position
- *  based assignment, which would reflow other windows' colors whenever a new
- *  earlier-starting window appears. */
+/** djb2-style string hash — the starting point for a window's color, kept stable
+ *  across renders as long as it doesn't collide with a sibling (see assignBandColors). */
 function hashToIndex(id: string, mod: number): number {
   let hash = 5381;
   for (let i = 0; i < id.length; i++) {
@@ -168,11 +166,39 @@ function hashToIndex(id: string, mod: number): number {
 }
 
 /**
+ * One colorIndex per window, mostly from hashToIndex (so a window's color
+ * usually stays put across renders) but bumped to the next free slot whenever
+ * two windows in the same batch would otherwise land on the same color —
+ * e.g. ending one observation and starting a new one on the same trigger
+ * shouldn't make the calendar band look like one continuous window. Windows
+ * are processed oldest-start-first so the reassignment is deterministic; once
+ * every slot in a bandCount-sized run is taken, the pool resets so later
+ * windows can reuse colors freed up by ones that no longer share a batch.
+ */
+function assignBandColors(windows: ObservationWindow[], bandCount: number): Map<string, number> {
+  const sorted = [...windows].sort((a, b) =>
+    a.startDate === b.startDate ? (a.id < b.id ? -1 : 1) : a.startDate < b.startDate ? -1 : 1
+  );
+  const colorByWindowId = new Map<string, number>();
+  const usedThisCycle = new Set<number>();
+  for (const w of sorted) {
+    if (usedThisCycle.size >= bandCount) usedThisCycle.clear();
+    let color = hashToIndex(w.id, bandCount);
+    while (usedThisCycle.has(color)) {
+      color = (color + 1) % bandCount;
+    }
+    usedThisCycle.add(color);
+    colorByWindowId.set(w.id, color);
+  }
+  return colorByWindowId;
+}
+
+/**
  * Buckets active observation windows by every date they cover within [from,to]
  * (inclusive), independent of whether that date has a log — an observation
- * covers calendar dates, not daily_logs rows. Each window gets a stable
- * colorIndex (see hashToIndex) so the Home calendar can render it as a band
- * without ever hardcoding a color in the component.
+ * covers calendar dates, not daily_logs rows. Each window gets a colorIndex
+ * (see assignBandColors) so the Home calendar can render it as a band without
+ * ever hardcoding a color in the component.
  */
 export function buildObservationBandsByDate(
   windows: ObservationWindow[],
@@ -181,8 +207,9 @@ export function buildObservationBandsByDate(
   bandCount: number
 ): Record<string, ObservationBand[]> {
   const byDate: Record<string, ObservationBand[]> = {};
+  const colorByWindowId = assignBandColors(windows, bandCount);
   for (const w of windows) {
-    const colorIndex = hashToIndex(w.id, bandCount);
+    const colorIndex = colorByWindowId.get(w.id)!;
     const start = w.startDate < from ? from : w.startDate;
     const end = w.endDate > to ? to : w.endDate;
     for (let cursor = start; cursor <= end; cursor = shiftISODate(cursor, 1)) {

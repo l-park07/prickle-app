@@ -22,6 +22,7 @@ interface LogTriggersSectionProps {
   onSelectSearchResult: (result: SearchableTrigger) => void;
   onAddCustomTrigger: (input: { label: string; category: TriggerRowCategory }) => void;
   onRemoveTrigger: (id: string) => void;
+  onAddNote: (trigger: DayEntryTrigger) => void;
 }
 
 /**
@@ -36,6 +37,7 @@ export function LogTriggersSection({
   onSelectSearchResult,
   onAddCustomTrigger,
   onRemoveTrigger,
+  onAddNote,
 }: LogTriggersSectionProps) {
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState('');
@@ -111,6 +113,18 @@ export function LogTriggersSection({
                   )}{' '}
                   of {daysBetween(trigger.observationStart, trigger.observationEnd)} days observed
                 </AppText>
+              ) : null}
+              {trigger.watched && trigger.experimentId ? (
+                <Pressable
+                  onPress={() => onAddNote(trigger)}
+                  accessibilityRole="button"
+                  style={styles.addNoteAction}
+                >
+                  <Ionicons name="clipboard-outline" size={16} color={colors.primary} />
+                  <AppText variant="label" color={colors.primary}>
+                    Add note
+                  </AppText>
+                </Pressable>
               ) : null}
             </View>
             <Pressable
@@ -228,6 +242,12 @@ const styles = StyleSheet.create({
   },
   checkboxWrap: {
     flex: 1,
+  },
+  addNoteAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
   },
   addForm: {
     gap: spacing.sm,

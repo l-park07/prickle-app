@@ -199,6 +199,8 @@ export interface DayEntryTrigger {
   /** The live observation window's start/end date, present iff watched is true. */
   observationStart: string | null;
   observationEnd: string | null;
+  /** The live observation window's experiments.id, present iff watched is true. */
+  experimentId: string | null;
 }
 
 export interface DayEntryMedication {
@@ -235,6 +237,100 @@ export interface DayEntry {
 }
 
 /**
+ * Every currently-active site/trigger/medication, LEFT JOINed against a
+ * specific log_id — the shared shape behind both getDayEntry (logId = that
+ * exact day's log, or null) and getPreviousDayEntry (logId = the most recent
+ * prior day's log). Because the WHERE clauses always filter on *currently*
+ * active items regardless of which logId is passed in, an item deactivated
+ * since that log simply never appears, and one added since just comes back
+ * with no join match (score null / checked false) — no special-casing needed.
+ */
+async function getDayEntryItems(
+  db: SQLiteDatabase,
+  userId: string,
+  logId: string | null
+): Promise<{
+  sites: DayEntrySite[];
+  triggers: DayEntryTrigger[];
+  medications: DayEntryMedication[];
+}> {
+  const sites = await db.getAllAsync<DayEntrySite>(
+    `SELECT s.id, s.name, ss.score AS score
+       FROM sites s
+       LEFT JOIN site_scores ss ON ss.site_id = s.id AND ss.log_id = ? AND ss.deleted_at IS NULL
+      WHERE s.user_id = ? AND s.is_active = 1 AND s.deleted_at IS NULL
+      ORDER BY s.sort_order ASC, s.name ASC`,
+    [logId, userId]
+  );
+
+  const triggerRows = await db.getAllAsync<{
+    id: string;
+    name: string;
+    category: string;
+    checked: number;
+    watched: number;
+    observation_start: string | null;
+    observation_end: string | null;
+    experiment_id: string | null;
+  }>(
+    `SELECT t.id, t.name, t.category,
+            CASE WHEN lt.id IS NOT NULL THEN 1 ELSE 0 END AS checked,
+            CASE WHEN EXISTS (
+              SELECT 1 FROM experiments e
+               WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
+            ) THEN 1 ELSE 0 END AS watched,
+            (SELECT e.start_date FROM experiments e
+              WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
+              ORDER BY e.start_date DESC LIMIT 1) AS observation_start,
+            (SELECT e.end_date FROM experiments e
+              WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
+              ORDER BY e.start_date DESC LIMIT 1) AS observation_end,
+            (SELECT e.id FROM experiments e
+              WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
+              ORDER BY e.start_date DESC LIMIT 1) AS experiment_id
+       FROM triggers t
+       LEFT JOIN log_triggers lt ON lt.trigger_id = t.id AND lt.log_id = ? AND lt.deleted_at IS NULL
+      WHERE t.user_id = ? AND t.is_active = 1 AND t.deleted_at IS NULL
+      ORDER BY watched DESC, t.name ASC`,
+    [todayISO(), todayISO(), todayISO(), todayISO(), logId, userId]
+  );
+
+  const medicationRows = await db.getAllAsync<{
+    id: string;
+    name: string;
+    category: string;
+    checked: number;
+  }>(
+    `SELECT m.id, m.name, m.category, CASE WHEN lm.id IS NOT NULL THEN 1 ELSE 0 END AS checked
+       FROM medications m
+       LEFT JOIN log_medications lm ON lm.medication_id = m.id AND lm.log_id = ? AND lm.deleted_at IS NULL
+      WHERE m.user_id = ? AND m.is_active = 1 AND m.deleted_at IS NULL
+      ORDER BY m.name ASC`,
+    [logId, userId]
+  );
+
+  return {
+    sites,
+    triggers: triggerRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      checked: r.checked === 1,
+      watched: r.watched === 1,
+      observationStart: r.observation_start,
+      observationEnd: r.observation_end,
+      experimentId: r.experiment_id,
+    })),
+    medications: medicationRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      checked: r.checked === 1,
+    })),
+  };
+}
+
+/**
  * One day's full detail — every active site/trigger/medication the user
  * tracks, joined against that day's log (if any). Powers the Log screen: it
  * returns a complete checklist shape even on a day with no entry yet (scores
@@ -258,56 +354,7 @@ export async function getDayEntry(
   );
   const logId = log?.id ?? null;
 
-  const sites = await db.getAllAsync<DayEntrySite>(
-    `SELECT s.id, s.name, ss.score AS score
-       FROM sites s
-       LEFT JOIN site_scores ss ON ss.site_id = s.id AND ss.log_id = ? AND ss.deleted_at IS NULL
-      WHERE s.user_id = ? AND s.is_active = 1 AND s.deleted_at IS NULL
-      ORDER BY s.sort_order ASC, s.name ASC`,
-    [logId, userId]
-  );
-
-  const triggerRows = await db.getAllAsync<{
-    id: string;
-    name: string;
-    category: string;
-    checked: number;
-    watched: number;
-    observation_start: string | null;
-    observation_end: string | null;
-  }>(
-    `SELECT t.id, t.name, t.category,
-            CASE WHEN lt.id IS NOT NULL THEN 1 ELSE 0 END AS checked,
-            CASE WHEN EXISTS (
-              SELECT 1 FROM experiments e
-               WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
-            ) THEN 1 ELSE 0 END AS watched,
-            (SELECT e.start_date FROM experiments e
-              WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
-              ORDER BY e.start_date DESC LIMIT 1) AS observation_start,
-            (SELECT e.end_date FROM experiments e
-              WHERE e.trigger_id = t.id AND e.deleted_at IS NULL AND e.end_date > ?
-              ORDER BY e.start_date DESC LIMIT 1) AS observation_end
-       FROM triggers t
-       LEFT JOIN log_triggers lt ON lt.trigger_id = t.id AND lt.log_id = ? AND lt.deleted_at IS NULL
-      WHERE t.user_id = ? AND t.is_active = 1 AND t.deleted_at IS NULL
-      ORDER BY watched DESC, t.name ASC`,
-    [todayISO(), todayISO(), todayISO(), logId, userId]
-  );
-
-  const medicationRows = await db.getAllAsync<{
-    id: string;
-    name: string;
-    category: string;
-    checked: number;
-  }>(
-    `SELECT m.id, m.name, m.category, CASE WHEN lm.id IS NOT NULL THEN 1 ELSE 0 END AS checked
-       FROM medications m
-       LEFT JOIN log_medications lm ON lm.medication_id = m.id AND lm.log_id = ? AND lm.deleted_at IS NULL
-      WHERE m.user_id = ? AND m.is_active = 1 AND m.deleted_at IS NULL
-      ORDER BY m.name ASC`,
-    [logId, userId]
-  );
+  const { sites, triggers, medications } = await getDayEntryItems(db, userId, logId);
 
   const photoRows = await db.getAllAsync<{
     id: string;
@@ -331,21 +378,8 @@ export async function getDayEntry(
     mood: log?.mood ?? null,
     note: log?.note ?? null,
     sites,
-    triggers: triggerRows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      category: r.category,
-      checked: r.checked === 1,
-      watched: r.watched === 1,
-      observationStart: r.observation_start,
-      observationEnd: r.observation_end,
-    })),
-    medications: medicationRows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      category: r.category,
-      checked: r.checked === 1,
-    })),
+    triggers,
+    medications,
     photos: photoRows.map((r) => ({
       id: r.id,
       siteId: r.site_id,
@@ -354,6 +388,55 @@ export async function getDayEntry(
       score: r.score,
       takenAt: r.taken_at,
     })),
+  };
+}
+
+export interface PreviousDayEntry {
+  logDate: string;
+  stress: number | null;
+  mood: number | null;
+  sites: DayEntrySite[];
+  triggers: DayEntryTrigger[];
+  medications: DayEntryMedication[];
+}
+
+/**
+ * The most recent previously-logged day strictly before `beforeDate` — used
+ * to pre-fill a brand-new day's form (sites/triggers/medications/mood) with
+ * "whatever it was last time," mirroring getPreviousSiteScore's "most recent
+ * prior log" semantics but for a whole day at once. Returns null if the user
+ * has never logged before this date. Never includes photos — a photo from a
+ * prior day is never appropriate to carry forward.
+ */
+export async function getPreviousDayEntry(
+  db: SQLiteDatabase,
+  userId: string,
+  beforeDate: string
+): Promise<PreviousDayEntry | null> {
+  const log = await db.getFirstAsync<{
+    id: string;
+    log_date: string;
+    stress: number | null;
+    mood: number | null;
+  }>(
+    `SELECT id, log_date, stress, mood
+       FROM daily_logs
+      WHERE user_id = ? AND log_date < ? AND deleted_at IS NULL
+      ORDER BY log_date DESC
+      LIMIT 1`,
+    [userId, beforeDate]
+  );
+  if (!log) return null;
+
+  const { sites, triggers, medications } = await getDayEntryItems(db, userId, log.id);
+
+  return {
+    logDate: log.log_date,
+    stress: log.stress,
+    mood: log.mood,
+    sites,
+    triggers,
+    medications,
   };
 }
 

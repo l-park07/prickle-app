@@ -1,22 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TRIGGER_CATALOG, type CatalogTrigger, type TriggerCategory } from '../../../content/triggerCatalog';
 import { AppText } from '../../components/AppText';
 import { LogFab } from '../../components/LogFab';
 import { CurrentlyWatchingCard } from '../../components/triggers/CurrentlyWatchingCard';
+import { EndOfPeriodReviewModal } from '../../components/triggers/EndOfPeriodReviewModal';
+import { ObservationNotesModal, type ObservationNotesTarget } from '../../components/triggers/ObservationNotesModal';
 import { TriggerCategoryCard } from '../../components/triggers/TriggerCategoryCard';
 import { TriggerDetailModal, type TriggerDetailTarget } from '../../components/triggers/TriggerDetailModal';
+import { TriggerWatchArchiveSection } from '../../components/triggers/TriggerWatchArchiveSection';
 import { YourTriggersSection } from '../../components/triggers/YourTriggersSection';
 import { useActiveUserId } from '../../hooks/useActiveUserId';
 import { db } from '../../lib/db';
 import {
   addKnownTrigger,
+  completeObservationReview,
   endObservation,
   getActiveObservations,
+  getObservationHistory,
+  getPendingReviewObservations,
   getSearchableTriggers,
   removeKnownTrigger,
   startObservation,
   type ActiveObservation,
+  type ObservationHistoryItem,
   type SearchableTrigger,
   type TriggerRowCategory,
 } from '../../lib/manageTriggers';
@@ -24,26 +33,39 @@ import { colors, spacing } from '../theme';
 
 export default function Triggers() {
   const activeUserId = useActiveUserId();
+  const insets = useSafeAreaInsets();
 
   const [activeObservations, setActiveObservations] = useState<ActiveObservation[]>([]);
   const [searchableTriggers, setSearchableTriggers] = useState<SearchableTrigger[]>([]);
   const [selectedTarget, setSelectedTarget] = useState<TriggerDetailTarget | null>(null);
   const [modalInitialStep, setModalInitialStep] = useState<'detail' | 'window'>('detail');
+  const [observationHistory, setObservationHistory] = useState<ObservationHistoryItem[]>([]);
+  const [pendingReview, setPendingReview] = useState<ObservationHistoryItem[]>([]);
+  const [notesTarget, setNotesTarget] = useState<ObservationNotesTarget | null>(null);
 
   const refresh = async () => {
     if (!activeUserId) return;
-    const [observations, searchable] = await Promise.all([
+    const [observations, searchable, history, pending] = await Promise.all([
       getActiveObservations(db, activeUserId),
       getSearchableTriggers(db, activeUserId),
+      getObservationHistory(db, activeUserId),
+      getPendingReviewObservations(db, activeUserId),
     ]);
     setActiveObservations(observations);
     setSearchableTriggers(searchable);
+    setObservationHistory(history);
+    setPendingReview(pending);
   };
 
-  useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeUserId]);
+  // useFocusEffect (not useEffect): the Log modal returns here via
+  // router.back(), which refocuses this already-mounted screen rather than
+  // remounting it, so a trigger added there shows up immediately.
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeUserId])
+  );
 
   const addedBySlug = new Map(searchableTriggers.filter((r) => r.slug).map((r) => [r.slug as string, r]));
   const myTriggers = searchableTriggers.filter((r) => r.added);
@@ -112,9 +134,35 @@ export default function Triggers() {
     setSelectedTarget(null);
   };
 
+  const openNotes = (
+    observation: ActiveObservation | ObservationHistoryItem,
+    autoCompose = false
+  ) => {
+    setNotesTarget({
+      experimentId: observation.experimentId,
+      label: observation.label,
+      category: observation.category,
+      startDate: observation.startDate,
+      endDate: observation.endDate,
+      autoCompose,
+    });
+  };
+
+  const handleCompleteReview = async ({ keepTrigger, note }: { keepTrigger: boolean; note: string }) => {
+    const observation = pendingReview[0];
+    if (!activeUserId || !observation) return;
+    await completeObservationReview(db, activeUserId, {
+      experimentId: observation.experimentId,
+      triggerId: observation.triggerId,
+      keepTrigger,
+      note,
+    });
+    await refresh();
+  };
+
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.lg }]}>
         <AppText variant="h1" color={colors.accent}>
           Triggers
         </AppText>
@@ -131,6 +179,8 @@ export default function Triggers() {
                 key={observation.experimentId}
                 observation={observation}
                 onEndEarly={handleEndEarly}
+                onOpenNotes={(o) => openNotes(o)}
+                onAddNote={(o) => openNotes(o, true)}
               />
             ))}
           </View>
@@ -154,6 +204,8 @@ export default function Triggers() {
             />
           ))}
         </View>
+
+        <TriggerWatchArchiveSection observations={observationHistory} onSelect={(o) => openNotes(o)} />
       </ScrollView>
 
       <TriggerDetailModal
@@ -163,6 +215,15 @@ export default function Triggers() {
         onClose={() => setSelectedTarget(null)}
         onAddToMyTriggers={handleAddToMyTriggers}
         onConfirmWatch={handleConfirmWatch}
+      />
+
+      <ObservationNotesModal target={notesTarget} onClose={() => setNotesTarget(null)} />
+
+      <EndOfPeriodReviewModal
+        observation={pendingReview[0] ?? null}
+        remainingCount={pendingReview.length}
+        onDismiss={() => setPendingReview([])}
+        onComplete={handleCompleteReview}
       />
 
       <LogFab />

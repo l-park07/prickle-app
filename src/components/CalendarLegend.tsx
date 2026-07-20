@@ -1,14 +1,15 @@
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, observationBands, overlay, radius, spacing } from '../app/theme';
+import type { ObservationBand } from '../lib/calendarMath';
 import { AppText } from './AppText';
 import { SeverityCell } from './SeverityCell';
 
 interface CalendarLegendProps {
   visible: boolean;
   onClose: () => void;
-  /** Show the observation-band explanation — only when the visible month has at least one active window. */
-  showObservationNote?: boolean;
+  /** Triggers currently being watched in the visible month, one row per band color — omit/empty to hide the section entirely. */
+  activeObservations?: ObservationBand[];
 }
 
 const SWATCH_SIZE = 32;
@@ -22,7 +23,7 @@ const SEVERITY_LABELS: Record<1 | 2 | 3 | 4 | 5, string> = {
 };
 
 /** Bottom sheet explaining what the calendar's colors/borders mean. */
-export function CalendarLegend({ visible, onClose, showObservationNote }: CalendarLegendProps) {
+export function CalendarLegend({ visible, onClose, activeObservations = [] }: CalendarLegendProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -69,17 +70,22 @@ export function CalendarLegend({ visible, onClose, showObservationNote }: Calend
               </View>
             </View>
 
-            {showObservationNote ? (
+            {activeObservations.length > 0 ? (
               <>
                 <View style={styles.divider} />
                 <View style={styles.rows}>
-                  <View style={styles.row}>
-                    <View style={[styles.swatch, styles.bandSample, { backgroundColor: observationBands[0] }]} />
-                    <AppText variant="body">
-                      A thin colored band under the date means you're closely watching one of your triggers that
-                      day.
-                    </AppText>
-                  </View>
+                  {activeObservations.map((observation) => (
+                    <View key={observation.id} style={styles.row}>
+                      <View
+                        style={[
+                          styles.swatch,
+                          styles.bandSample,
+                          { backgroundColor: observationBands[observation.colorIndex % observationBands.length] },
+                        ]}
+                      />
+                      <AppText variant="body">Watching: {observation.label}</AppText>
+                    </View>
+                  ))}
                 </View>
               </>
             ) : null}
