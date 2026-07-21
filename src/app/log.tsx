@@ -3,14 +3,14 @@ import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet } from 'react-native';
 import { AppText } from '../components/AppText';
 import { Card } from '../components/Card';
-import { LogMedicationsSection } from '../components/LogMedicationsSection';
 import { LogMoodSection } from '../components/LogMoodSection';
 import { LogSitesSection } from '../components/LogSitesSection';
+import { LogTreatmentsSection } from '../components/LogTreatmentsSection';
 import { LogTriggersSection } from '../components/LogTriggersSection';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ObservationNotesModal, type ObservationNotesTarget } from '../components/triggers/ObservationNotesModal';
 import { useActiveUserId } from '../hooks/useActiveUserId';
-import { formatFullFriendlyDate } from '../lib/calendarMath';
+import { formatFullFriendlyDate, todayISO } from '../lib/calendarMath';
 import {
   DayEntryMedication,
   DayEntryPhoto,
@@ -21,7 +21,7 @@ import {
 } from '../lib/chartSelectors';
 import { db } from '../lib/db';
 import { insertDailyLog } from '../lib/insertDailyLog';
-import { addMedication, addSite, removeMedication, removeSite } from '../lib/manageTrackedItems';
+import { addSite, removeMedication, removeSite } from '../lib/manageTrackedItems';
 import {
   addKnownTrigger,
   customSearchableTrigger,
@@ -33,6 +33,15 @@ import {
   type TriggerRowCategory,
 } from '../lib/manageTriggers';
 import { addPhoto, removePhoto } from '../lib/managePhotos';
+import {
+  addFreeTypedTreatment,
+  addTreatmentFromLibrary,
+  clearTreatmentRest,
+  startTreatmentRest,
+  updateTreatmentDetails,
+  type TreatmentDetails,
+  type TreatmentMatch,
+} from '../lib/manageTreatments';
 import { rescheduleNotifications } from '../lib/notificationScheduler';
 import { captureFromCamera, pickFromLibrary } from '../lib/photoCapture';
 import { colors, spacing } from './theme';
@@ -206,17 +215,80 @@ export default function LogModal() {
     );
   };
 
-  const handleAddMedication = async (input: {
-    name: string;
-    deliveryMethod: string;
-    frequency: string;
-  }) => {
+  const handleSelectTreatmentMatch = async (match: TreatmentMatch) => {
     if (!activeUserId) return;
-    const id = await addMedication(db, activeUserId, input);
+    if (match.kind === 'saved') {
+      // Already on the list — just check it for today. No-op if already checked.
+      setMedications((prev) =>
+        prev.map((m) => (m.id === match.treatmentId ? { ...m, checked: true } : m))
+      );
+      return;
+    }
+    const id = await addTreatmentFromLibrary(db, activeUserId, match.entry);
     setMedications((prev) => [
       ...prev,
-      { id, name: input.name, category: 'other', checked: true },
+      {
+        id,
+        name: match.entry.name,
+        category: 'other',
+        checked: true,
+        type: match.entry.type,
+        deliveryMethod: match.entry.method,
+        isSteroid: match.entry.isSteroid ?? false,
+        cadenceEvery: null,
+        cadenceUnit: null,
+        isPrn: false,
+        activeCount: null,
+        activeUnit: null,
+        restCount: null,
+        restUnit: null,
+        restStartedAt: null,
+      },
     ]);
+  };
+
+  const handleAddFreeTypedTreatment = async (name: string) => {
+    if (!activeUserId) return;
+    const id = await addFreeTypedTreatment(db, activeUserId, name);
+    setMedications((prev) => [
+      ...prev,
+      {
+        id,
+        name: name.trim(),
+        category: 'other',
+        checked: true,
+        type: null,
+        deliveryMethod: null,
+        isSteroid: null,
+        cadenceEvery: null,
+        cadenceUnit: null,
+        isPrn: false,
+        activeCount: null,
+        activeUnit: null,
+        restCount: null,
+        restUnit: null,
+        restStartedAt: null,
+      },
+    ]);
+  };
+
+  const handleUpdateTreatmentDetails = async (treatmentId: string, details: TreatmentDetails) => {
+    await updateTreatmentDetails(db, treatmentId, details);
+    setMedications((prev) => prev.map((m) => (m.id === treatmentId ? { ...m, ...details } : m)));
+  };
+
+  const handleStartTreatmentRest = async (treatmentId: string) => {
+    await startTreatmentRest(db, treatmentId);
+    setMedications((prev) =>
+      prev.map((m) => (m.id === treatmentId ? { ...m, restStartedAt: todayISO() } : m))
+    );
+  };
+
+  const handleCompleteTreatmentRest = async (treatmentId: string) => {
+    await clearTreatmentRest(db, treatmentId);
+    setMedications((prev) =>
+      prev.map((m) => (m.id === treatmentId ? { ...m, restStartedAt: null } : m))
+    );
   };
 
   const handleRemoveMedication = async (medicationId: string) => {
@@ -314,11 +386,15 @@ export default function LogModal() {
             onRemoveTrigger={handleRemoveTrigger}
             onAddNote={handleAddNote}
           />
-          <LogMedicationsSection
-            medications={medications}
+          <LogTreatmentsSection
+            treatments={medications}
             onToggle={handleToggleMedication}
-            onAddMedication={handleAddMedication}
-            onRemoveMedication={handleRemoveMedication}
+            onSelectMatch={handleSelectTreatmentMatch}
+            onAddFreeTyped={handleAddFreeTypedTreatment}
+            onRemoveTreatment={handleRemoveMedication}
+            onUpdateDetails={handleUpdateTreatmentDetails}
+            onStartRest={handleStartTreatmentRest}
+            onCompleteRest={handleCompleteTreatmentRest}
           />
           <PrimaryButton label="Save" onPress={handleSave} loading={saving} />
         </Card>

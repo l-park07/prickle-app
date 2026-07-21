@@ -6,6 +6,7 @@
  * Changing time scale = the date filter + whether you aggregate.
  */
 import type { SQLiteDatabase } from 'expo-sqlite';
+import type { CadenceUnit, DeliveryMethod, TreatmentType, WindowUnit } from '../../content/treatmentLibrary';
 import { todayISO, type ObservationWindow } from './calendarMath';
 
 /** A tidy data point most chart libraries can consume directly. */
@@ -281,6 +282,20 @@ export interface DayEntryMedication {
   category: string;
   /** true iff a log_medications row exists for this day. */
   checked: boolean;
+  type: TreatmentType | null;
+  deliveryMethod: DeliveryMethod | null;
+  /** null = unknown (never set, e.g. a free-typed add) — distinct from "known false". */
+  isSteroid: boolean | null;
+  cadenceEvery: number | null;
+  cadenceUnit: CadenceUnit | null;
+  isPrn: boolean;
+  /** Optional on/off cycle — both null unless the user has set one. */
+  activeCount: number | null;
+  activeUnit: WindowUnit | null;
+  restCount: number | null;
+  restUnit: WindowUnit | null;
+  /** 'YYYY-MM-DD' the user tapped "Start rest," or null if not currently resting. */
+  restStartedAt: string | null;
 }
 
 export interface DayEntryPhoto {
@@ -372,8 +387,22 @@ async function getDayEntryItems(
     name: string;
     category: string;
     checked: number;
+    type: TreatmentType | null;
+    delivery_method: DeliveryMethod | null;
+    is_steroid: number | null;
+    cadence_every: number | null;
+    cadence_unit: CadenceUnit | null;
+    is_prn: number;
+    active_count: number | null;
+    active_unit: WindowUnit | null;
+    rest_count: number | null;
+    rest_unit: WindowUnit | null;
+    rest_started_at: string | null;
   }>(
-    `SELECT m.id, m.name, m.category, CASE WHEN lm.id IS NOT NULL THEN 1 ELSE 0 END AS checked
+    `SELECT m.id, m.name, m.category, CASE WHEN lm.id IS NOT NULL THEN 1 ELSE 0 END AS checked,
+            m.type, m.delivery_method, m.is_steroid,
+            m.cadence_every, m.cadence_unit, m.is_prn,
+            m.active_count, m.active_unit, m.rest_count, m.rest_unit, m.rest_started_at
        FROM medications m
        LEFT JOIN log_medications lm ON lm.medication_id = m.id AND lm.log_id = ? AND lm.deleted_at IS NULL
       WHERE m.user_id = ? AND m.is_active = 1 AND m.deleted_at IS NULL
@@ -398,6 +427,17 @@ async function getDayEntryItems(
       name: r.name,
       category: r.category,
       checked: r.checked === 1,
+      type: r.type,
+      deliveryMethod: r.delivery_method,
+      isSteroid: r.is_steroid === null ? null : r.is_steroid === 1,
+      cadenceEvery: r.cadence_every,
+      cadenceUnit: r.cadence_unit,
+      isPrn: r.is_prn === 1,
+      activeCount: r.active_count,
+      activeUnit: r.active_unit,
+      restCount: r.rest_count,
+      restUnit: r.rest_unit,
+      restStartedAt: r.rest_started_at,
     })),
   };
 }

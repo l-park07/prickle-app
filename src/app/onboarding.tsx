@@ -214,7 +214,26 @@ export default function OnboardingScreen() {
   const handleAddMedication = async (input: { name: string; deliveryMethod: string; frequency: string }) => {
     if (!activeUserId) return;
     const id = await addMedication(db, activeUserId, input);
-    setMedications((prev) => [...prev, { id, name: input.name, category: 'other', checked: true }]);
+    setMedications((prev) => [
+      ...prev,
+      {
+        id,
+        name: input.name,
+        category: 'other',
+        checked: true,
+        type: null,
+        deliveryMethod: null,
+        isSteroid: null,
+        cadenceEvery: null,
+        cadenceUnit: null,
+        isPrn: false,
+        activeCount: null,
+        activeUnit: null,
+        restCount: null,
+        restUnit: null,
+        restStartedAt: null,
+      },
+    ]);
   };
   const handleRemoveMedication = async (medicationId: string) => {
     await removeMedication(db, medicationId);
