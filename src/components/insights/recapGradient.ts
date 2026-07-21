@@ -7,6 +7,7 @@
 // -----------------------------------------------------------------------------
 import { clearColor, severityScale } from '../../app/theme';
 import { withAlpha } from './chartTheme';
+import { evenTicks } from './scoreChartLayout';
 
 // RECAP direction (confirmed from content/assessments.ts, not assumed): every option set scores
 // the LOW-symptom / good-control answer as 0 and the HIGH-symptom / poor-control answer as 4
@@ -15,25 +16,20 @@ import { withAlpha } from './chartTheme';
 // HIGH score (near 28) = uncontrolled — same direction as POEM's "0 = clear, 28 = severe."
 //
 // [top, bottom] of a vertical LinearGradient (start={x:0,y:0} end={x:0,y:1}): top = 28 =
-// uncontrolled gets the deeper tint, bottom = 0 = controlled gets the soft/light tint. Kept
-// low-alpha throughout — this is an orientation cue, not a claim about real cutoffs (RECAP has
-// none), so it must stay soft even at its most saturated end.
+// uncontrolled gets the deeper tint, bottom = 0 = controlled gets the soft/light tint. Still an
+// orientation cue, not a claim about real cutoffs (RECAP has none) — but pushed more saturated
+// than a bare hint so it actually reads at a glance.
 export const RECAP_GRADIENT_COLORS: [string, string] = [
-  withAlpha(severityScale[5], 0.22), // top (28) — uncontrolled
-  withAlpha(clearColor, 0.1), // bottom (0) — controlled
+  withAlpha(severityScale[5], 0.38), // top (28) — uncontrolled
+  withAlpha(clearColor, 0.2), // bottom (0) — controlled
 ];
 
 const SECTION_COUNT = 7; // coarser than POEM's 28: no fine boundary to resolve, and a smooth
 // gradient doesn't need 28 discrete rows the way band-matching did.
-const TICK_STEP = 28 / SECTION_COUNT; // 4
 
-let cachedYAxisLabelTexts: string[] | null = null;
-
-/** 8 y-axis tick labels (0,4,8,...,28) — a plain even spread, since there are no bands to anchor ticks to. */
-export function recapYAxisLabelTexts(): string[] {
-  if (cachedYAxisLabelTexts) return cachedYAxisLabelTexts;
-  cachedYAxisLabelTexts = Array.from({ length: SECTION_COUNT + 1 }, (_, i) => String(i * TICK_STEP));
-  return cachedYAxisLabelTexts;
+/** Evenly-spaced y-axis tick values (0,4,8,...,28) for ScoreOverTime's own label overlay — there are no bands to anchor ticks to. */
+export function recapYAxisTicks(): number[] {
+  return evenTicks(28, 4);
 }
 
 export const RECAP_NO_OF_SECTIONS = SECTION_COUNT;

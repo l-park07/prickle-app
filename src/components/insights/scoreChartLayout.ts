@@ -77,3 +77,18 @@ export function buildScoreChartLayout(
 
   return { spacing, lineSegments };
 }
+
+/**
+ * Evenly-spaced y-axis tick values (0, step, 2*step, ..., maxValue). Rendered by ScoreOverTime
+ * as its OWN absolutely-positioned overlay, not via gifted-charts' `yAxisLabelTexts` prop —
+ * traced that prop's actual behavior in gifted-charts-core's getLabelTextUtil and it does not
+ * support suppressing a row's label: any index without a truthy custom string still falls back
+ * to rendering that row's raw numeric value, so a sparse label set (needed at POEM's fine
+ * 28-section resolution — a 24/25 clinical boundary pair is 1 unit apart and unreadable if both
+ * render) isn't achievable through it. Ticks are deliberately not tied to any metric's band
+ * boundaries — the band/gradient colors carry that precision, the axis only needs orientation.
+ */
+export function evenTicks(maxValue: number, step: number): number[] {
+  const count = maxValue / step;
+  return Array.from({ length: count + 1 }, (_, i) => i * step);
+}

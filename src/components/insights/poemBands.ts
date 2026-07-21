@@ -2,17 +2,17 @@
 // -----------------------------------------------------------------------------
 // POEM-specific chart tokens: the 28 gifted-charts sectionColors (one per POEM
 // point, bottom-up) that reproduce POEM_BANDS' irregular boundaries exactly via
-// the library's own uniform-section layout math, plus sparse y-axis tick labels
-// at those same boundaries. See scoreChartLayout.ts for the metric-agnostic
-// layout math this pairs with.
+// the library's own uniform-section layout math. See scoreChartLayout.ts for
+// the metric-agnostic layout math (and evenTicks) this pairs with.
 // -----------------------------------------------------------------------------
 import { POEM_BANDS } from '../../../content/assessments';
 import { severityScale } from '../../app/theme';
 import { withAlpha } from './chartTheme';
+import { evenTicks } from './scoreChartLayout';
 
 const SECTION_COUNT = 28; // matches maxValue=28 — one uniform section per POEM point, so
 // gifted-charts' own sectionColors mechanism can paint the irregular band boundaries exactly.
-const SECTION_TINT_ALPHA = 0.18;
+const SECTION_TINT_ALPHA = 0.32;
 
 let cachedSectionColors: string[] | null = null;
 
@@ -27,15 +27,7 @@ export function poemSectionColors(): string[] {
   return cachedSectionColors;
 }
 
-const Y_AXIS_LABEL_VALUES: Set<number> = new Set(POEM_BANDS.flatMap((b) => [b.min, b.max]));
-
-let cachedYAxisLabelTexts: string[] | null = null;
-
-/** 29 y-axis tick labels (0..28), numbered only at POEM band boundaries — sparse, like the mockup. */
-export function poemYAxisLabelTexts(): string[] {
-  if (cachedYAxisLabelTexts) return cachedYAxisLabelTexts;
-  cachedYAxisLabelTexts = Array.from({ length: SECTION_COUNT + 1 }, (_, value) =>
-    Y_AXIS_LABEL_VALUES.has(value) ? String(value) : ''
-  );
-  return cachedYAxisLabelTexts;
+/** Evenly-spaced y-axis tick values (0,4,8,...,28) for ScoreOverTime's own label overlay — NOT the band boundaries (see evenTicks' comment for why). */
+export function poemYAxisTicks(): number[] {
+  return evenTicks(28, 4);
 }

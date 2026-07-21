@@ -29,8 +29,13 @@ export default function Insights() {
       getActiveSites(db, activeUserId).then((sites) => {
         setState((prev) => ({ ...prev, activeSiteIds: sites.map((s) => s.id) }));
       });
-      getPoemSeries(db, activeUserId, state.from, state.to).then(setPoemSeries);
-      getRecapSeries(db, activeUserId, state.from, state.to).then(setRecapSeries);
+      // POEM/RECAP always show their full history — sparse weekly data is most useful seen in
+      // full, so these two ignore the range picker's from/to entirely (see ScoreOverTime's
+      // showsFullHistory note). No date bound passed at all — getPoemSeries/getRecapSeries
+      // return every real row when from/to are omitted, so "full history" is whatever the
+      // earliest/latest actual entries are, not a guessed-wide date constant.
+      getPoemSeries(db, activeUserId).then(setPoemSeries);
+      getRecapSeries(db, activeUserId).then(setRecapSeries);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeUserId, state.from, state.to])
   );

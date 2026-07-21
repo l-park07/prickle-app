@@ -102,48 +102,56 @@ export async function getActiveSites(
 }
 
 /**
- * Weekly POEM totals over a window, most-recent last (chart order). A week with
- * no row (never taken) and a week with a null score (2+ blanks, voided per
- * scoreAssessment.ts) both simply don't appear — same "absence = no entry"
- * convention as every other selector here. Band is NOT computed here — call
- * poemBand() from content/scoreAssessment.ts at the point of use, same as
- * AssessmentHistoryRow does.
+ * Weekly POEM totals, most-recent last (chart order). A week with no row (never
+ * taken) and a week with a null score (2+ blanks, voided per scoreAssessment.ts)
+ * both simply don't appear — same "absence = no entry" convention as every other
+ * selector here. Band is NOT computed here — call poemBand() from
+ * content/scoreAssessment.ts at the point of use, same as AssessmentHistoryRow
+ * does.
+ *
+ * `from`/`to` are optional: omit both for the chart's actual full history (the
+ * earliest/latest real rows), rather than filtering against a guessed-wide date
+ * constant — there's no bound that's truly guaranteed to cover "all of it."
  */
 export async function getPoemSeries(
   db: SQLiteDatabase,
   userId: string,
-  from: string,
-  to: string
+  from?: string,
+  to?: string
 ): Promise<{ weekStart: string; score: number }[]> {
+  const range = from && to ? 'AND week_start BETWEEN ? AND ?' : '';
+  const params = from && to ? [userId, from, to] : [userId];
   const rows = await db.getAllAsync<{ week_start: string; poem_score: number }>(
     `SELECT week_start, poem_score
        FROM weekly_assessments
       WHERE user_id = ?
-        AND week_start BETWEEN ? AND ?
+        ${range}
         AND deleted_at IS NULL
         AND poem_score IS NOT NULL
       ORDER BY week_start ASC`,
-    [userId, from, to]
+    params
   );
   return rows.map((r) => ({ weekStart: r.week_start, score: r.poem_score }));
 }
 
-/** Weekly RECAP totals — same shape/gap contract as getPoemSeries above, see its comment. */
+/** Weekly RECAP totals — same shape/gap contract and optional-range convention as getPoemSeries above, see its comment. */
 export async function getRecapSeries(
   db: SQLiteDatabase,
   userId: string,
-  from: string,
-  to: string
+  from?: string,
+  to?: string
 ): Promise<{ weekStart: string; score: number }[]> {
+  const range = from && to ? 'AND week_start BETWEEN ? AND ?' : '';
+  const params = from && to ? [userId, from, to] : [userId];
   const rows = await db.getAllAsync<{ week_start: string; recap_score: number }>(
     `SELECT week_start, recap_score
        FROM weekly_assessments
       WHERE user_id = ?
-        AND week_start BETWEEN ? AND ?
+        ${range}
         AND deleted_at IS NULL
         AND recap_score IS NOT NULL
       ORDER BY week_start ASC`,
-    [userId, from, to]
+    params
   );
   return rows.map((r) => ({ weekStart: r.week_start, score: r.recap_score }));
 }

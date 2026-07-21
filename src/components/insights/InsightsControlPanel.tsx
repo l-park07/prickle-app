@@ -17,8 +17,10 @@ export type InsightsState = {
 
 type RangePreset = '30d' | '90d' | '6mo' | '1yr' | 'all';
 
-// Simply an early bound, not a real earliest-log lookup — nothing in the DB predates it,
-// so it behaves exactly like "all time" without a query. Not shown to the user.
+// This panel's own "All" time-range preset — simply an early bound, not a real earliest-log
+// lookup (nothing in the DB predates it), so it behaves like "all time" without a query. Not
+// shown to the user. POEM/RECAP don't use this: they fetch with no date bound at all (see
+// getPoemSeries/getRecapSeries), so their "full history" is never pinned to a guessed constant.
 const ALL_TIME_FROM = '2000-01-01';
 
 const RANGE_PRESETS: { value: RangePreset; label: string; days: number | null }[] = [
