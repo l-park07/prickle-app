@@ -42,6 +42,19 @@ export const palette = {
   dusk: '#7d8fae', // muted slate-blue
   harbor: '#5f7a8c', // muted teal-blue, darker
   thistle: '#8f7ba8', // muted blue-violet
+
+  // Site-identity categorical hues (see sitePalette below) — this exact set/order is validated
+  // via the dataviz skill's categorical-palette checks (chroma floor, CVD adjacent-pair distance,
+  // normal-vision floor, contrast) against `background`'s hex, run through
+  // scripts/validate_palette.js. Muted variants closer to the rest of this palette failed the
+  // chroma floor (read as gray) or the CVD/normal-vision separation checks — these are more
+  // saturated than the rest of the app's palette on purpose; that's what makes five lines on the
+  // same chart tellable apart. Do not hand-tune these hexes without re-running the validator.
+  emerald: '#008300',
+  magentaPink: '#e87ba4',
+  marigold: '#eda100',
+  aqua: '#1baf7a',
+  tangerine: '#eb6834',
 } as const;
 
 // 2) SEMANTIC COLORS — what things ARE, not what color they happen to be.
@@ -111,6 +124,23 @@ export const notScoredBorder = palette.clay;
 // severity color.
 export const observationBands: string[] = [palette.dusk, palette.harbor, palette.thistle];
 
+// Site-identity line colors for multi-site charts (Insights' severity-over-time chart, and any
+// comparison chart built on it later). Distinct from severityScale on purpose: severity encodes a
+// SCORE (which end of the 1-5 ramp), this encodes WHICH SITE — coloring a site's line by its own
+// current severity would conflate the two and make a line's color drift as the score changes.
+// Also distinct from observationBands (reserved for calendar bands / non-severity overlay lines).
+// Fixed order, assigned by a site's stable position (sort_order), never re-cycled based on which
+// sites happen to be toggled on — see chartTheme.ts's assignSiteColors. Capped at 5: that's as
+// many concurrent lines as react-native-gifted-charts' LineChart exposes with per-line gap
+// segments (data/data2../data5) in the installed version.
+export const sitePalette: string[] = [
+  palette.emerald,
+  palette.magentaPink,
+  palette.marigold,
+  palette.aqua,
+  palette.tangerine,
+];
+
 // 4) TYPOGRAPHY — this is where Open Sans lives, so <AppText> stops hardcoding it.
 //    Every key here must have a matching entry in `fontAssets` below, or it'll
 //    silently fall back to the system font when unregistered.
@@ -154,6 +184,7 @@ export const theme = {
   notRecordedColor,
   notScoredBorder,
   observationBands,
+  sitePalette,
   fontFamily,
   fontAssets,
   typography,

@@ -9,7 +9,7 @@
 // only exposes tokens, not gifted-charts-specific config objects, so nothing
 // here is a guess at an API surface that doesn't exist yet.
 // -----------------------------------------------------------------------------
-import { colors, clearColor, fontFamily, observationBands, severityScale, typography } from '../../app/theme';
+import { colors, clearColor, fontFamily, observationBands, severityScale, sitePalette, spacing, typography } from '../../app/theme';
 
 /**
  * Severity line/point colors, keyed 1-5 — a direct re-export of severityScale.
@@ -50,4 +50,47 @@ export function withAlpha(hex: string, alpha: number): string {
     .toString(16)
     .padStart(2, '0');
   return `${hex}${alphaHex}`;
+}
+
+/**
+ * Deterministic per-site line color: cycles sitePalette by a site's position in the given list
+ * (expected to be sort_order order, e.g. getActiveSites' result) — NOT by which sites currently
+ * happen to be toggled on, so a site's color never shifts as other sites are turned on/off.
+ * Capped at sitePalette.length (5): react-native-gifted-charts' LineChart only exposes data..data5
+ * for multi-line rendering with per-line gap segments, so a site beyond the cap has no slot to put
+ * a color on — callers filter their site list down to this map's keys before rendering a legend
+ * or a chart line for it.
+ */
+export function assignSiteColors(sites: { id: string }[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  sites.slice(0, sitePalette.length).forEach((site, index) => {
+    map[site.id] = sitePalette[index];
+  });
+  return map;
+}
+
+// --- Shared react-native-gifted-charts LineChart layout gotchas ------------------------------
+// Kept in one place so every chart that self-positions overlays (a gradient fill, hand-drawn
+// y-axis ticks, a tooltip) agrees on the same numbers instead of re-deriving them. Originally
+// discovered while building ScoreOverTime.tsx (POEM/RECAP) — see that file's history for the
+// investigation.
+
+/** gifted-charts-core's getExtendedContainerHeightWithPadding hardcodes `containerHeight +
+ * overflowTop + 10` no matter what overflowTop/overflowBottom are set to (confirmed against the
+ * installed 1.4.77's utils/index.js). Anything self-positioned inside the chart's own coordinate
+ * space has to add this same 10px or it silently sits too high. */
+export const PLOT_Y_OFFSET = 10;
+
+/** gifted-charts' own y-axis number gutter — its `totalWidth` layout math excludes this width, so
+ * any container-width budget (plotWidth) has to subtract it manually or the chart overflows its
+ * card. */
+export const Y_AXIS_LABEL_WIDTH = 32;
+
+export const CHART_INITIAL_SPACING = spacing.lg;
+export const CHART_END_SPACING = 44; // extra trailing room so the last x-axis label has space to sit in
+
+/** Pixel y (from the top of the chart's own coordinate space) where `value` sits on a
+ * `maxValue`/`chartHeight` scale — matches gifted-charts' internal getY(), PLOT_Y_OFFSET included. */
+export function plotTop(value: number, maxValue: number, chartHeight: number): number {
+  return PLOT_Y_OFFSET + chartHeight - (value / maxValue) * chartHeight;
 }

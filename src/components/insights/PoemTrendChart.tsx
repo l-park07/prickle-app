@@ -1,25 +1,23 @@
 import { POEM, POEM_BANDS } from '../../../content/assessments';
 import { poemBand } from '../../../content/scoreAssessment';
-import type { GapMode } from '../../lib/chartSeries';
 import { poemSectionColors, poemYAxisTicks } from './poemBands';
 import { ScoreOverTime } from './ScoreOverTime';
 
 interface PoemTrendChartProps {
   data: { weekStart: string; score: number }[];
-  gapMode: GapMode;
 }
 
 // The instrument's own band names, verbatim — nothing invented here.
 const POEM_REGION_LABELS = POEM_BANDS.map((b) => ({ label: b.label, midValue: (b.min + b.max) / 2 }));
 
-/** Weekly POEM totals on a true time axis, with the five canonical severity bands as a backdrop. */
-export function PoemTrendChart({ data, gapMode }: PoemTrendChartProps) {
+/** Weekly POEM totals on a true time axis, with the five canonical severity bands as a backdrop.
+ *  Owns its own gap-mode toggle (see ScoreOverTime) — independent of every other Insights chart. */
+export function PoemTrendChart({ data }: PoemTrendChartProps) {
   return (
     <ScoreOverTime
       title="POEM"
       copyright={POEM.copyright}
       data={data}
-      gapMode={gapMode}
       maxValue={28}
       noOfSections={28}
       yAxisTicks={poemYAxisTicks()}

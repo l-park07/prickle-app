@@ -1,12 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { type LayoutChangeEvent, PanResponder, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-gifted-charts';
+import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import { colors, radius, spacing } from '../../app/theme';
 import type { GapMode } from '../../lib/chartSeries';
 import { AppText } from '../AppText';
-import { axisTextStyle, withAlpha } from './chartTheme';
+import {
+  axisTextStyle,
+  CHART_END_SPACING,
+  CHART_INITIAL_SPACING,
+  PLOT_Y_OFFSET,
+  plotTop,
+  withAlpha,
+  Y_AXIS_LABEL_WIDTH,
+} from './chartTheme';
 import { ChartCard } from './ChartCard';
+import { ChartExportButton } from './ChartExportButton';
+import { GapModeControl } from './GapModeControl';
 import { DOT_SIZE, ScoreDataPoint } from './ScoreDataPoint';
 import { buildScoreChartLayout, toScoreChartPoints } from './scoreChartLayout';
 
@@ -18,7 +29,6 @@ interface ScoreOverTimeProps {
   title: string; // "POEM" | "RECAP" — also the accessibility label prefix
   copyright: string;
   data: { weekStart: string; score: number }[];
-  gapMode: GapMode;
   maxValue: number;
   noOfSections: number;
   yAxisTicks: number[];
@@ -36,18 +46,7 @@ interface ScoreOverTimeProps {
 // exact integer pixel height — fractional per-row heights (e.g. 220/28 = 7.857...) left visible
 // 1px seams between adjacent sectionColors rows.
 const CHART_HEIGHT = 224;
-// gifted-charts-core's getExtendedContainerHeightWithPadding hardcodes `containerHeight +
-// overflowTop + 10` — a fixed 10px is added no matter what overflowTop is set to (confirmed in
-// utils/index.js; overflowBottom, despite being a declared prop, isn't read anywhere in this
-// version). That 10px pushes maxValue down to y=10 and value=0 down to y=CHART_HEIGHT+10 inside
-// the chart's own coordinate space, so anything we position ourselves (the gradient fill, our
-// y-axis ticks, region labels) has to add the same 10px or it silently sits too high — which is
-// exactly what left the RECAP gradient short of the x-axis.
-const PLOT_Y_OFFSET = 10;
-const INITIAL_SPACING = spacing.lg;
-const END_SPACING = 44; // extra trailing room so the last x-axis label has space to sit in
 const MIN_PLOT_WIDTH = 100;
-const Y_AXIS_LABEL_WIDTH = 32;
 const TICK_LABEL_HEIGHT = 20; // matches typography.caption/label's lineHeight
 const LABELS_EXTRA_HEIGHT = 40; // vertical room below the x-axis so labels never touch it
 const CHART_SIDE_MARGIN = spacing.sm; // extra breathing room from the card's rounded corners — the chart itself has square corners
@@ -64,11 +63,6 @@ function formatScoreWithBand(score: number, band: string | null): string {
   return band ? `${score} (${band})` : `${score}`;
 }
 
-/** Pixel y (from the top of chartArea) where `value` sits on the chart's own maxValue scale — matches gifted-charts' internal getY(), PLOT_Y_OFFSET included. */
-function plotTop(value: number, maxValue: number): number {
-  return PLOT_Y_OFFSET + CHART_HEIGHT - (value / maxValue) * CHART_HEIGHT;
-}
-
 /** Drops a region label whenever it would sit closer than MIN_REGION_LABEL_GAP to the previous
  * KEPT label — e.g. POEM's "Clear or almost clear" band is only 3 units tall, too thin for its
  * own label without crowding "Mild eczema" right above it. Input must already be sorted by
@@ -80,7 +74,7 @@ function filterCrowdedLabels(
   const kept: { label: string; midValue: number }[] = [];
   let lastTop: number | null = null;
   for (const region of labels) {
-    const top = plotTop(region.midValue, maxValue);
+    const top = plotTop(region.midValue, maxValue, CHART_HEIGHT);
     if (lastTop === null || Math.abs(top - lastTop) >= MIN_REGION_LABEL_GAP) {
       kept.push(region);
       lastTop = top;
@@ -94,7 +88,6 @@ export function ScoreOverTime({
   title,
   copyright,
   data,
-  gapMode,
   maxValue,
   noOfSections,
   yAxisTicks,
@@ -106,6 +99,8 @@ export function ScoreOverTime({
 }: ScoreOverTimeProps) {
   const [containerWidth, setContainerWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [gapMode, setGapMode] = useState<GapMode>('break');
+  const shotRef = useRef<ViewShotRef>(null);
 
   const points = useMemo(() => toScoreChartPoints(data, band ?? (() => null)), [data, band]);
   const selectedPoint = selectedIndex != null ? (points[selectedIndex] ?? null) : null;
@@ -121,7 +116,7 @@ export function ScoreOverTime({
   // yAxisLabelWidth added separately when the whole chart is laid out). Leaving it out of this
   // budget meant the chart rendered ~Y_AXIS_LABEL_WIDTH px wider than its actual container and
   // spilled past the card's edge — this must be subtracted here too, not just from styling.
-  const plotWidth = Math.max(MIN_PLOT_WIDTH, containerWidth - Y_AXIS_LABEL_WIDTH - INITIAL_SPACING - END_SPACING);
+  const plotWidth = Math.max(MIN_PLOT_WIDTH, containerWidth - Y_AXIS_LABEL_WIDTH - CHART_INITIAL_SPACING - CHART_END_SPACING);
   const layout = useMemo(
     () => buildScoreChartLayout(points, { gapMode, plotWidth }),
     [points, gapMode, plotWidth]
@@ -148,7 +143,7 @@ export function ScoreOverTime({
   // Mirrors getX(index) = initialSpacing + cumulativeSpacing[index-1] so drag-scrubbing finds
   // the same pixel position gifted-charts actually draws each point at.
   const cumulativeX = useMemo(() => {
-    const xs: number[] = [INITIAL_SPACING];
+    const xs: number[] = [CHART_INITIAL_SPACING];
     for (let i = 0; i < chartData.length - 1; i++) {
       xs.push(xs[xs.length - 1] + chartData[i].spacing);
     }
@@ -181,17 +176,17 @@ export function ScoreOverTime({
     </>
   );
 
+  const exportButton = <ChartExportButton shotRef={shotRef} chartTitle={title} />;
+  const gapModeControl = <GapModeControl value={gapMode} onChange={setGapMode} />;
+
   if (points.length < 2) {
     return (
-      <ChartCard
-        title={title}
-        attribution={attribution}
-        empty={
-          <AppText variant="caption" color={colors.textSecondary}>
-            {emptyMessage}
-          </AppText>
-        }
-      />
+      <ChartCard title={title} attribution={attribution} headerRight={exportButton}>
+        {gapModeControl}
+        <AppText variant="caption" color={colors.textSecondary} style={styles.emptyNote}>
+          {emptyMessage}
+        </AppText>
+      </ChartCard>
     );
   }
 
@@ -204,12 +199,14 @@ export function ScoreOverTime({
   const summary = `Weekly ${title} scores from ${shortDateLabel(points[0].weekStart)} to ${shortDateLabel(points[points.length - 1].weekStart)}, ranging from ${formatScoreWithBand(lowest.score, lowest.band)} to ${formatScoreWithBand(highest.score, highest.band)}.`;
 
   return (
-    <ChartCard title={title} attribution={attribution}>
-      {/* chartMargin is a separate OUTER wrapper (not the onLayout view itself) so onLayout
-          measures the space actually left AFTER this margin — the margin has to come off the
-          width budget same as everything else, and nesting it this way gets that for free
-          instead of needing another manual subtraction. */}
-      <View style={styles.chartMargin}>
+    <ChartCard title={title} attribution={attribution} headerRight={exportButton}>
+      {gapModeControl}
+      {/* ViewShot wraps just the plot (not the gap-mode control above it) so a saved picture is
+          the chart itself, not the surrounding controls. chartMargin is a separate OUTER wrapper
+          (not the onLayout view itself) so onLayout measures the space actually left AFTER this
+          margin — the margin has to come off the width budget same as everything else, and
+          nesting it this way gets that for free instead of needing another manual subtraction. */}
+      <ViewShot ref={shotRef} style={styles.chartMargin}>
         <View onLayout={handleLayout} accessible accessibilityLabel={summary}>
           {containerWidth > 0 ? (
             <View style={styles.chartArea} {...panResponder.panHandlers}>
@@ -240,8 +237,8 @@ export function ScoreOverTime({
                 curved={false}
                 color={colors.primary}
                 thickness={2}
-                initialSpacing={INITIAL_SPACING}
-                endSpacing={END_SPACING}
+                initialSpacing={CHART_INITIAL_SPACING}
+                endSpacing={CHART_END_SPACING}
                 lineSegments={layout.lineSegments}
                 dataPointsWidth={DOT_SIZE}
                 dataPointsHeight={DOT_SIZE}
@@ -257,7 +254,7 @@ export function ScoreOverTime({
                 )}
               />
               {yAxisTicks.map((value) => {
-                const top = plotTop(value, maxValue) - TICK_LABEL_HEIGHT / 2;
+                const top = plotTop(value, maxValue, CHART_HEIGHT) - TICK_LABEL_HEIGHT / 2;
                 return (
                   <View key={value} pointerEvents="none" style={[styles.yAxisTick, { top }]}>
                     <AppText variant="caption" color={colors.textSecondary}>
@@ -267,7 +264,7 @@ export function ScoreOverTime({
                 );
               })}
               {visibleRegionLabels.map((region) => {
-                const top = plotTop(region.midValue, maxValue) - TICK_LABEL_HEIGHT / 2;
+                const top = plotTop(region.midValue, maxValue, CHART_HEIGHT) - TICK_LABEL_HEIGHT / 2;
                 return (
                   <View key={region.label} pointerEvents="none" style={[styles.regionLabel, { top }]}>
                     {/* A backdrop plate, not bare text over the chart — otherwise the data line
@@ -283,7 +280,7 @@ export function ScoreOverTime({
             </View>
           ) : null}
         </View>
-      </View>
+      </ViewShot>
 
       {selectedPoint ? (
         <View style={styles.selectedRow}>
@@ -318,6 +315,10 @@ function selectNearestByX(cumulativeX: number[], touchX: number, setSelectedInde
 const styles = StyleSheet.create({
   chartMargin: {
     paddingHorizontal: CHART_SIDE_MARGIN,
+  },
+  emptyNote: {
+    paddingVertical: spacing.md,
+    textAlign: 'center',
   },
   chartArea: {
     position: 'relative',

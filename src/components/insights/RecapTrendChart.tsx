@@ -1,11 +1,9 @@
 import { RECAP } from '../../../content/assessments';
-import type { GapMode } from '../../lib/chartSeries';
 import { RECAP_GRADIENT_COLORS, RECAP_NO_OF_SECTIONS, recapYAxisTicks } from './recapGradient';
 import { ScoreOverTime } from './ScoreOverTime';
 
 interface RecapTrendChartProps {
   data: { weekStart: string; score: number }[];
-  gapMode: GapMode;
 }
 
 // Orientation labels for the gradient direction already established in recapGradient.ts's
@@ -16,14 +14,15 @@ const RECAP_REGION_LABELS = [
   { label: 'Controlled', midValue: 4 },
 ];
 
-/** Weekly RECAP totals on a true time axis, with a soft controlled->uncontrolled gradient backdrop. No band prop: RECAP has no published bands, so none are invented. */
-export function RecapTrendChart({ data, gapMode }: RecapTrendChartProps) {
+/** Weekly RECAP totals on a true time axis, with a soft controlled->uncontrolled gradient backdrop.
+ *  No band prop: RECAP has no published bands, so none are invented. Owns its own gap-mode toggle
+ *  (see ScoreOverTime) — independent of every other Insights chart. */
+export function RecapTrendChart({ data }: RecapTrendChartProps) {
   return (
     <ScoreOverTime
       title="RECAP"
       copyright={RECAP.copyright}
       data={data}
-      gapMode={gapMode}
       maxValue={28}
       noOfSections={RECAP_NO_OF_SECTIONS}
       yAxisTicks={recapYAxisTicks()}

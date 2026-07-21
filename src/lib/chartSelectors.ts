@@ -16,51 +16,45 @@ export interface SeriesPoint {
   value: number | null;
 }
 
-type Granularity = 'daily' | 'weekly' | 'monthly';
-
 /**
- * Site severity over time. This is your main toggleable, time-scalable chart.
+ * Site severity over time, one row per (site, logged day) — raw daily rows, never pre-bucketed.
+ * Time-scale aggregation (daily/weekly/monthly) is the CALLER's job via chartSeries.ts's
+ * buildBuckets, not this query's: that lets a caller choose 'max' (the calendar's "worst site"
+ * convention, so a flare doesn't get averaged away over a week view) instead of this always
+ * silently averaging.
  *
  * @param siteIds  which sites to include -> this IS the on/off toggle. Pass the
  *                 currently-enabled site ids; leave one out and its line vanishes.
- * @param from/to  the visible date window -> this is the time-scale filter.
- * @param granularity  'daily' shows raw scores; 'weekly'/'monthly' average them
- *                 so a year view isn't 365 cramped points.
+ * @param from/to  the visible date window.
+ *
+ * LEFT JOINs site_scores (not an inner join) so a day the user logged but didn't score THIS site
+ * still comes back as a real row with value: null — distinct from a day with no daily_logs row at
+ * all, which simply doesn't appear in the result. That distinction is what lets a chart tell "no
+ * check-in" apart from "logged, not scored" (see chartSeries.ts's Bucket.logged) instead of
+ * collapsing both into the same gap.
  */
 export async function getSiteSeries(
   db: SQLiteDatabase,
   userId: string,
   siteIds: string[],
   from: string,
-  to: string,
-  granularity: Granularity = 'daily'
+  to: string
 ): Promise<SeriesPoint[]> {
   if (siteIds.length === 0) return [];
   const placeholders = siteIds.map(() => '?').join(',');
 
-  // strftime buckets let SQLite do the time-scaling for us.
-  const bucket =
-    granularity === 'monthly'
-      ? "strftime('%Y-%m', d.log_date)"
-      : granularity === 'weekly'
-      ? "strftime('%Y-W%W', d.log_date)"
-      : 'd.log_date';
-
-  const rows = await db.getAllAsync<{ date: string; series: string; value: number }>(
-    `SELECT ${bucket} AS date,
+  const rows = await db.getAllAsync<{ date: string; series: string; value: number | null }>(
+    `SELECT d.log_date AS date,
             s.name     AS series,
-            AVG(ss.score) AS value      -- AVG == raw value when granularity is daily
-       FROM site_scores ss
-       JOIN daily_logs d ON d.id = ss.log_id
-       JOIN sites s      ON s.id = ss.site_id
+            ss.score   AS value
+       FROM daily_logs d
+       JOIN sites s ON s.user_id = d.user_id AND s.deleted_at IS NULL AND s.id IN (${placeholders})
+       LEFT JOIN site_scores ss ON ss.log_id = d.id AND ss.site_id = s.id AND ss.deleted_at IS NULL
       WHERE d.user_id = ?
         AND d.log_date BETWEEN ? AND ?
-        AND ss.site_id IN (${placeholders})
         AND d.deleted_at IS NULL
-        AND ss.deleted_at IS NULL
-      GROUP BY date, s.name
-      ORDER BY date ASC`,
-    [userId, from, to, ...siteIds]
+      ORDER BY d.log_date ASC, s.name ASC`,
+    [...siteIds, userId, from, to]
   );
   return rows;
 }
@@ -98,6 +92,43 @@ export async function getActiveSites(
        FROM sites
       WHERE user_id = ? AND is_active = 1 AND deleted_at IS NULL
       ORDER BY sort_order ASC, name ASC`,
+    [userId]
+  );
+}
+
+/**
+ * Every currently-active trigger, id + name only — for the comparison chart's trigger chip
+ * switcher. Deliberately not manageTriggers.ts's getSearchableTriggers: that one merges in the
+ * whole catalog (for the Log modal's add-a-trigger search); this is just the user's own active
+ * rows, same shape/role as getActiveSites.
+ */
+export async function getActiveTriggers(
+  db: SQLiteDatabase,
+  userId: string
+): Promise<{ id: string; name: string }[]> {
+  return db.getAllAsync<{ id: string; name: string }>(
+    `SELECT id, name
+       FROM triggers
+      WHERE user_id = ? AND is_active = 1 AND deleted_at IS NULL
+      ORDER BY name ASC`,
+    [userId]
+  );
+}
+
+/**
+ * Every currently-active medication, id + name only — for the comparison chart's medication
+ * chip switcher, same role as getActiveSites plays for the severity chart's site toggle.
+ * Ordered by name: unlike sites, medications has no sort_order column.
+ */
+export async function getActiveMedications(
+  db: SQLiteDatabase,
+  userId: string
+): Promise<{ id: string; name: string }[]> {
+  return db.getAllAsync<{ id: string; name: string }>(
+    `SELECT id, name
+       FROM medications
+      WHERE user_id = ? AND is_active = 1 AND deleted_at IS NULL
+      ORDER BY name ASC`,
     [userId]
   );
 }
@@ -180,6 +211,33 @@ export async function getTriggerDays(
         AND lt.deleted_at IS NULL
       ORDER BY d.log_date ASC`,
     [userId, triggerId, from, to]
+  );
+  return rows.map((r) => r.log_date);
+}
+
+/**
+ * Days a given medication was taken in the window — same rug/marker-row role as getTriggerDays,
+ * just joined through log_medications/medications instead of log_triggers/triggers. Medication
+ * use is binary per day (a log_medications row = taken that day), never a 0-5 severity value.
+ */
+export async function getMedicationDays(
+  db: SQLiteDatabase,
+  userId: string,
+  medicationId: string,
+  from: string,
+  to: string
+): Promise<string[]> {
+  const rows = await db.getAllAsync<{ log_date: string }>(
+    `SELECT d.log_date
+       FROM log_medications lm
+       JOIN daily_logs d ON d.id = lm.log_id
+      WHERE d.user_id = ?
+        AND lm.medication_id = ?
+        AND d.log_date BETWEEN ? AND ?
+        AND d.deleted_at IS NULL
+        AND lm.deleted_at IS NULL
+      ORDER BY d.log_date ASC`,
+    [userId, medicationId, from, to]
   );
   return rows.map((r) => r.log_date);
 }

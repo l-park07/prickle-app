@@ -16,16 +16,23 @@ interface ChartCardProps {
   summary?: string;
   /** Shown instead of children when there's nothing to plot yet. */
   empty?: ReactNode;
+  /** Sits opposite the title, e.g. ChartExportButton's save/share icon — every chart supplies its own, since each captures a different view. */
+  headerRight?: ReactNode;
   children?: ReactNode;
 }
 
 const DEFAULT_EMPTY_MESSAGE = "Nothing logged in this stretch yet — that's alright.";
 
 /** Consistent bordered wrapper every Insights chart sits inside. */
-export function ChartCard({ title, attribution, summary, empty, children }: ChartCardProps) {
+export function ChartCard({ title, attribution, summary, empty, headerRight, children }: ChartCardProps) {
   return (
     <Card style={styles.card}>
-      <AppText variant="title">{title}</AppText>
+      <View style={styles.headerRow}>
+        <AppText variant="title" style={styles.headerTitle}>
+          {title}
+        </AppText>
+        {headerRight}
+      </View>
       {attribution ? attribution : null}
       {summary ? (
         <AppText variant="caption" color={colors.textSecondary}>
@@ -50,6 +57,15 @@ export function ChartCard({ title, attribution, summary, empty, children }: Char
 const styles = StyleSheet.create({
   card: {
     gap: spacing.sm,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  headerTitle: {
+    flexShrink: 1,
   },
   emptyState: {
     paddingVertical: spacing.md,
