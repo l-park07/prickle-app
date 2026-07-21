@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, spacing } from '../app/theme';
+import { todayISO } from '../lib/calendarMath';
 
 // Mirrors expo-router's internal TABBAR_HEIGHT_UIKIT (see
 // build/react-navigation/bottom-tabs/views/BottomTabBar.js). The tab bar's
@@ -22,7 +23,7 @@ export function LogFab() {
   return (
     <Pressable
       onPress={() =>
-        router.push({ pathname: '/log', params: { date: new Date().toISOString().slice(0, 10) } })
+        router.push({ pathname: '/log', params: { date: todayISO() } })
       }
       accessibilityRole="button"
       accessibilityLabel="Log"

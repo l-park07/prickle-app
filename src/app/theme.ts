@@ -20,7 +20,7 @@ export const palette = {
   graham: '#dac5b4',
   mustard: '#cd9e74',
   coral: '#c37a67',
-  terracotta: '#a75e5b',
+  terracotta: '#a75e5b', // score 5
   crimson: '#a7294a',
   green: '#7f9174',
   greyGreen: '#99a797',

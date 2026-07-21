@@ -10,6 +10,7 @@ import {
   getMonthGrid,
   monthBounds,
   shiftMonth,
+  todayISO,
   WEEKDAY_LABELS,
   type ObservationBand,
 } from '../lib/calendarMath';
@@ -19,8 +20,6 @@ import { AppText } from './AppText';
 import { CalendarDay } from './CalendarDay';
 import { CalendarLegend } from './CalendarLegend';
 import { Card } from './Card';
-
-const todayISO = () => new Date().toISOString().slice(0, 10);
 
 /** Home's month calendar: navigate months, see worst severity per day, tap a day to open Today. */
 export function MonthCalendar() {
