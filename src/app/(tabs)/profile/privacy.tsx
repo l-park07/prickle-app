@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from '../../../components/PlaceholderScreen';
+import { PrivacyScreen } from '../../../components/account/PrivacyScreen';
 
 export default function Privacy() {
-  return <PlaceholderScreen title="Privacy" />;
+  return <PrivacyScreen />;
 }

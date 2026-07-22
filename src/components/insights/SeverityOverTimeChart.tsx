@@ -4,21 +4,21 @@ import { LineChart } from 'react-native-gifted-charts';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import { colors, radius, spacing } from '../../app/theme';
 import { useActiveUserId } from '../../hooks/useActiveUserId';
-import type { Bucket, GapMode } from '../../lib/chartSeries';
+import { daysBetween, todayISO } from '../../lib/calendarMath';
+import { autoGranularity, type Bucket } from '../../lib/chartSeries';
 import { AppText } from '../AppText';
 import { bucketMonthLabels, bucketsToLineSegments, formatBucketDate } from './bucketChartLayout';
-import { axisTextStyle, CHART_END_SPACING, CHART_INITIAL_SPACING, plotTop, Y_AXIS_LABEL_WIDTH } from './chartTheme';
+import { axisTextStyle, CHART_INITIAL_SPACING, plotTop, Y_AXIS_LABEL_WIDTH } from './chartTheme';
 import { ChartCard } from './ChartCard';
 import { ChartExportButton } from './ChartExportButton';
-import { GapModeControl } from './GapModeControl';
-import { defaultRangeState, RangeAndGranularityControls, type RangeState } from './RangeAndGranularityControls';
 import { evenTicks } from './scoreChartLayout';
 import { SiteToggleLegend } from './SiteToggleLegend';
-import { useActiveSiteSelection, useSiteSeverityBuckets } from './useSiteSeverityBuckets';
+import { useActiveSiteSelection, useEarliestLogDate, useSiteSeverityBuckets } from './useSiteSeverityBuckets';
 
-// Divides evenly into the 0-5 severity scale's 5 sections (40px/section) — avoids the fractional
-// per-row-height seam ScoreOverTime's comment warns about for POEM's 28 sections.
-const CHART_HEIGHT = 200;
+// Divides evenly into the 0-5 severity scale's 5 sections — avoids the fractional per-row-height
+// seam ScoreOverTime's comment warns about for POEM's 28 sections. Taller than a bare 5*40px so a
+// full-history line (many buckets) has real vertical room to read instead of looking squashed.
+const CHART_HEIGHT = 260;
 const MIN_PLOT_WIDTH = 100;
 const TICK_LABEL_HEIGHT = 20;
 const LABELS_EXTRA_HEIGHT = 40;
@@ -34,7 +34,10 @@ interface SeverityOverTimeChartProps {
 }
 
 /** First chart on the Insights tab: one line per active site. Fully self-contained — owns its own
- *  site toggle, time-range/granularity, and gap-mode, independent of every other chart on the tab. */
+ *  site toggle. Unlike SeverityComparisonChart, this one has no time-range/granularity/gap-mode
+ *  controls: it always plots the user's real full history (see useEarliestLogDate), auto-picking a
+ *  granularity (autoGranularity) and always showing gaps ('break') — the one control worth keeping
+ *  is which sites are on, so that's the only one exposed. */
 export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChartProps) {
   const activeUserId = useActiveUserId();
   const [containerWidth, setContainerWidth] = useState(0);
@@ -43,8 +46,13 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
   const chartableSites = useMemo(() => sites.filter((s) => colorById[s.id]), [sites, colorById]);
   const [requestedActiveSiteIds, setRequestedActiveSiteIds] = useActiveSiteSelection(chartableSites);
 
-  const [range, setRange] = useState<RangeState>(defaultRangeState);
-  const [gapMode, setGapMode] = useState<GapMode>('break');
+  const today = todayISO();
+  const earliestLogDate = useEarliestLogDate(activeUserId);
+  // Falls back to "today" while earliestLogDate is still loading (or the user has never logged) —
+  // collapses to a single, empty bucket rather than a guessed-wide date constant (see
+  // getEarliestLogDate's comment on why there's no bound that's truly guaranteed to cover "all of it").
+  const from = earliestLogDate ?? today;
+  const granularity = useMemo(() => autoGranularity(daysBetween(from, today)), [from, today]);
 
   const sitesById = useMemo(() => new Map(sites.map((s) => [s.id, s.name])), [sites]);
 
@@ -53,20 +61,20 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
     sites,
     colorById,
     requestedActiveSiteIds,
-    from: range.from,
-    to: range.to,
-    granularity: range.granularity,
-    gapMode,
+    from,
+    to: today,
+    granularity,
+    gapMode: 'break',
   });
 
-  const labels = useMemo(
-    () => bucketMonthLabels(bucketDates),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bucketDates.join(',')]
-  );
+  const plotWidth = Math.max(MIN_PLOT_WIDTH, containerWidth - Y_AXIS_LABEL_WIDTH);
+  const spacingPx = bucketDates.length > 1 ? (plotWidth - CHART_INITIAL_SPACING) / (bucketDates.length - 1) : 0;
 
-  const plotWidth = Math.max(MIN_PLOT_WIDTH, containerWidth - Y_AXIS_LABEL_WIDTH - CHART_INITIAL_SPACING - CHART_END_SPACING);
-  const spacingPx = bucketDates.length > 1 ? plotWidth / (bucketDates.length - 1) : 0;
+  const labels = useMemo(
+    () => bucketMonthLabels(bucketDates, spacingPx),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bucketDates.join(','), spacingPx]
+  );
 
   const handleLayout = (e: LayoutChangeEvent) => setContainerWidth(e.nativeEvent.layout.width);
 
@@ -92,7 +100,7 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
     return (
       <View style={styles.tooltip}>
         <AppText variant="label" color={colors.textPrimary}>
-          {formatBucketDate(date, range.granularity)}
+          {formatBucketDate(date, granularity)}
         </AppText>
         {activeSiteIds.map((id) => {
           const bucket = displayBySite[id]?.[pointerIndex];
@@ -112,33 +120,28 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
 
   const exportButton = <ChartExportButton shotRef={shotRef} chartTitle="Symptom severity over time" />;
 
-  const controls = (
-    <>
-      {chartableSites.length > 0 ? (
-        <View style={styles.section}>
-          <AppText variant="label" color={colors.textSecondary}>
-            Sites
+  const siteControls =
+    chartableSites.length > 0 ? (
+      <View style={styles.section}>
+        <AppText variant="label" color={colors.textSecondary}>
+          Sites
+        </AppText>
+        <SiteToggleLegend sites={chartableSites} colorById={colorById} activeSiteIds={requestedActiveSiteIds} onChange={setRequestedActiveSiteIds} />
+        {sites.length > chartableSites.length ? (
+          <AppText variant="caption" color={colors.textSecondary}>
+            Showing your first {chartableSites.length} sites here — charts can only show that many lines at once.
           </AppText>
-          <SiteToggleLegend sites={chartableSites} colorById={colorById} activeSiteIds={requestedActiveSiteIds} onChange={setRequestedActiveSiteIds} />
-          {sites.length > chartableSites.length ? (
-            <AppText variant="caption" color={colors.textSecondary}>
-              Showing your first {chartableSites.length} sites here — charts can only show that many lines at once.
-            </AppText>
-          ) : null}
-        </View>
-      ) : null}
-      <RangeAndGranularityControls value={range} onChange={setRange} />
-      <GapModeControl value={gapMode} onChange={setGapMode} />
-    </>
-  );
+        ) : null}
+      </View>
+    ) : null;
 
   if (activeSiteIds.length === 0) {
     return (
       <ChartCard title="Symptom severity over time" headerRight={exportButton}>
-        {controls}
         <AppText variant="caption" color={colors.textSecondary} style={styles.emptyNote}>
           {chartableSites.length === 0 ? 'Add a site to see its trend here.' : 'Turn on a site above to see its trend.'}
         </AppText>
+        {siteControls}
       </ChartCard>
     );
   }
@@ -149,12 +152,11 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
   // Not shown as visible text — carried as the chart's accessibility label, same standard as
   // CalendarDay's describeState()/ScoreOverTime's summary.
   const summary = hasAnyValue
-    ? `Severity 0 to 5 for ${siteNames}, ${formatBucketDate(bucketDates[0], range.granularity)} to ${formatBucketDate(bucketDates[bucketDates.length - 1], range.granularity)}.`
+    ? `Severity 0 to 5 for ${siteNames}, ${formatBucketDate(bucketDates[0], granularity)} to ${formatBucketDate(bucketDates[bucketDates.length - 1], granularity)}.`
     : undefined;
 
   return (
     <ChartCard title="Symptom severity over time" headerRight={exportButton}>
-      {controls}
       <ViewShot ref={shotRef} style={styles.shotArea}>
         {!hasAnyValue ? (
           <AppText variant="caption" color={colors.textSecondary} style={styles.emptyNote}>
@@ -203,8 +205,8 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
                     thickness4={2}
                     thickness5={2}
                     initialSpacing={CHART_INITIAL_SPACING}
-                    endSpacing={CHART_END_SPACING}
-                    spacing={spacingPx}
+                    width={plotWidth}
+                    adjustToWidth
                     pointerConfig={{
                       pointerStripHeight: CHART_HEIGHT,
                       pointerStripColor: colors.border,
@@ -245,6 +247,7 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
           Touch or drag the chart to see each site's score for a day.
         </AppText>
       ) : null}
+      {siteControls}
     </ChartCard>
   );
 }

@@ -49,7 +49,8 @@
           "color": "#a75e5b"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

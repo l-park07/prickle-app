@@ -2,7 +2,9 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { AppText } from '../../../components/AppText';
+import { EmailUpdatesOptIn } from '../../../components/EmailUpdatesOptIn';
 import { PrimaryButton } from '../../../components/PrimaryButton';
+import { CloudSyncToggle } from '../../../components/settings/CloudSyncToggle';
 import { SettingsRow } from '../../../components/SettingsRow';
 import { TextField } from '../../../components/TextField';
 import { useAuth } from '../../../context/AuthProvider';
@@ -64,6 +66,12 @@ export default function Profile() {
             label="Notifications"
             onPress={() => router.push('/profile/notifications')}
           />
+          <View style={styles.toggleRow}>
+            <CloudSyncToggle />
+          </View>
+          <View style={styles.toggleRow}>
+            <EmailUpdatesOptIn variant="switch" />
+          </View>
           <SettingsRow
             label="Sign out"
             onPress={handleSignOut}
@@ -93,5 +101,9 @@ const styles = StyleSheet.create({
   },
   rows: {
     gap: 0,
+  },
+  toggleRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
 });

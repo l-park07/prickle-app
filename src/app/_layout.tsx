@@ -3,6 +3,7 @@ import { SplashScreen, Stack } from "expo-router";
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '../context/AuthProvider';
+import { ConsentProvider, useConsent } from '../context/ConsentProvider';
 import { OnboardingProvider, useOnboarding } from '../context/OnboardingProvider';
 import { useActiveUserId } from '../hooks/useActiveUserId';
 import { useAppForeground } from '../hooks/useAppForeground';
@@ -15,7 +16,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
         <OnboardingProvider>
-          <RootNavigator />
+          <ConsentProvider>
+            <RootNavigator />
+          </ConsentProvider>
         </OnboardingProvider>
       </AuthProvider>
     </GestureHandlerRootView>
@@ -27,11 +30,16 @@ function RootNavigator() {
   const [fontsLoaded, fontError] = useFonts(fontAssets);
   const { user, initializing } = useAuth();
   const { onboardingComplete } = useOnboarding();
+  const { consentCurrent } = useConsent();
   const [dbInitialized, setDbInitialized] = useState(false);
   // A signed-out user has no uid for OnboardingProvider to key off of, so
   // onboardingComplete stays null for them forever — only gate on it when
-  // there's actually someone signed in to check it for.
-  const ready = (fontsLoaded || !!fontError) && !initializing && dbInitialized && (!user || onboardingComplete !== null);
+  // there's actually someone signed in to check it for. Same idea for
+  // consentCurrent, but it only matters once onboarding is done — the
+  // onboarding carousel's own PrivacyConsentStep captures fresh consent for
+  // new users, so there's nothing to wait on while onboardingComplete !== true.
+  const ready = (fontsLoaded || !!fontError) && !initializing && dbInitialized
+    && (!user || (onboardingComplete !== null && (onboardingComplete !== true || consentCurrent !== null)));
   const activeUserId = useActiveUserId();
 
   useEffect(() => {
@@ -68,10 +76,17 @@ function RootNavigator() {
         {/* (tabs)/onboarding must be declared first: React Navigation defaults
             the stack's initial route to the first declared (guard-passing)
             screen, and that needs to be the app's real home, not a modal. */}
-        <Stack.Protected guard={onboardingComplete === true}>
+        <Stack.Protected guard={onboardingComplete === true && consentCurrent !== false}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="log" options={{ presentation: 'modal', headerShown: true, title: 'Log' }} />
           <Stack.Screen name="dev-debug" options={{ headerShown: true, title: 'Debug' }} />
+        </Stack.Protected>
+        {/* Consent record predates a PRIVACY_POLICY_VERSION bump — re-prompt
+            before letting an otherwise-onboarded user back into the tabs.
+            Mutually exclusive with the guard above, so declaration order
+            relative to it doesn't affect the initial-route heuristic. */}
+        <Stack.Protected guard={onboardingComplete === true && consentCurrent === false}>
+          <Stack.Screen name="reconsent" options={{ headerShown: false, gestureEnabled: false }} />
         </Stack.Protected>
         <Stack.Protected guard={onboardingComplete === false}>
           <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />

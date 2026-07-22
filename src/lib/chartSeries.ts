@@ -24,6 +24,18 @@
 export type Granularity = 'day' | 'week' | 'month';
 
 /**
+ * Picks a bucket granularity for a chart that always plots full history: fine enough to be useful
+ * over a short span, coarse enough that the bucket count — and so the x-axis label count — stays
+ * readable once the history stretches over many months or years. Thresholds are chosen to keep the
+ * bucket count in roughly the same 40-60 range regardless of span.
+ */
+export function autoGranularity(spanDays: number): Granularity {
+  if (spanDays <= 60) return 'day';
+  if (spanDays <= 420) return 'week';
+  return 'month';
+}
+
+/**
  * How to render missing data:
  *  - 'break': keep a TRUE time axis; leave a hole where there's no value. Honest
  *             about elapsed time. This is the recommended default.

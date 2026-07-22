@@ -3,10 +3,14 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText } from '../../components/AppText';
+import { EmailUpdatesOptIn } from '../../components/EmailUpdatesOptIn';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { TextField } from '../../components/TextField';
 import { useAuth } from '../../context/AuthProvider';
 import { authErrorMessage } from '../../lib/authErrorMessage';
+import { getEmailUpdatesOptIn } from '../../lib/consent';
+import { auth } from '../../lib/firebase';
+import { setMailPref } from '../../lib/mailPrefs';
 import { colors, spacing } from '../theme';
 
 const MIN_PASSWORD_LENGTH = 6;
@@ -34,6 +38,22 @@ export default function SignUp() {
     setLoading(true);
     try {
       await signUp(email, password);
+
+      // Catch-up sync: the checkbox above may have been checked before the
+      // account (and uid) existed, in which case it could only persist the
+      // preference locally. auth.currentUser is populated synchronously here
+      // by the SDK — unlike useAuth().user, which only updates on the next
+      // onAuthStateChanged fire, not guaranteed yet in this tick.
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        try {
+          if (await getEmailUpdatesOptIn()) await setMailPref(uid, true);
+        } catch (mailPrefError) {
+          // Non-critical background sync — must never block or surface
+          // through the account-creation error UI below.
+          console.warn('Failed to sync email updates preference', mailPrefError);
+        }
+      }
     } catch (e) {
       setError(authErrorMessage(e));
     } finally {
@@ -85,6 +105,8 @@ export default function SignUp() {
               placeholder="••••••••"
             />
           </View>
+
+          <EmailUpdatesOptIn variant="checkbox" />
 
           {error ? (
             <AppText variant="caption" color={colors.error}>

@@ -80,6 +80,20 @@ export async function getStressSeries(
 }
 
 /**
+ * Earliest daily_logs date the user has, across every site — the true start of "full history" for
+ * a chart that always shows everything, rather than filtering against a guessed-wide date constant
+ * (see getPoemSeries's comment: there's no bound that's truly guaranteed to cover "all of it" other
+ * than the real earliest row). null if the user has never logged.
+ */
+export async function getEarliestLogDate(db: SQLiteDatabase, userId: string): Promise<string | null> {
+  const row = await db.getFirstAsync<{ log_date: string | null }>(
+    `SELECT MIN(log_date) AS log_date FROM daily_logs WHERE user_id = ? AND deleted_at IS NULL`,
+    [userId]
+  );
+  return row?.log_date ?? null;
+}
+
+/**
  * Every currently-active site, id + name only, no score join — for chart
  * controls (e.g. the Insights site-toggle list) rather than a specific day.
  */

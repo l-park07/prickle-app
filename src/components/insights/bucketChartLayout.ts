@@ -35,9 +35,27 @@ export function formatBucketDate(date: string, granularity: Granularity): string
   return formatFriendlyDate(date);
 }
 
-/** x-axis labels for a bucketed series: the month label on the first bucket of each new month, blank otherwise. */
-export function bucketMonthLabels(bucketDates: string[]): string[] {
-  return bucketDates.map((date, i) => (i === 0 || bucketMonthKey(date) !== bucketMonthKey(bucketDates[i - 1]) ? bucketMonthLabel(date) : ''));
+/**
+ * x-axis labels for a bucketed series: the month label on the first bucket of each new month,
+ * blank otherwise — additionally suppressed if it would land within `minLabelPx` of the last label
+ * actually shown, so a long history at fine granularity doesn't cram overlapping "Mon 'YY" text
+ * together (each label reads roughly that wide regardless of how tight the buckets are packed).
+ * `spacingPx` defaults to Infinity (never suppress) for callers that haven't measured their layout.
+ */
+export function bucketMonthLabels(bucketDates: string[], spacingPx = Infinity, minLabelPx = 44): string[] {
+  const labels: string[] = [];
+  let lastShownIndex = -Infinity;
+  bucketDates.forEach((date, i) => {
+    const isMonthStart = i === 0 || bucketMonthKey(date) !== bucketMonthKey(bucketDates[i - 1]);
+    const roomSinceLast = (i - lastShownIndex) * spacingPx;
+    if (isMonthStart && roomSinceLast >= minLabelPx) {
+      labels.push(bucketMonthLabel(date));
+      lastShownIndex = i;
+    } else {
+      labels.push('');
+    }
+  });
+  return labels;
 }
 
 /**

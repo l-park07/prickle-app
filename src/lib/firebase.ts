@@ -13,6 +13,7 @@ import {
   type Auth,
 } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
+import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Config comes from EXPO_PUBLIC_ env vars (see .env.example).
@@ -42,4 +43,11 @@ try {
 
 const storage = getStorage(app);
 
-export { app, auth, storage };
+// The project's existing (default) Firestore database — already provisioned
+// and in use by the website repo (e.g. its waitlist collection). This just
+// opens a client to it; it does not create or re-initialize anything. Named
+// `firestore`, not `db`, so it's never confused with the local SQLite `db`
+// export from ./db.ts.
+const firestore = getFirestore(app);
+
+export { app, auth, storage, firestore };

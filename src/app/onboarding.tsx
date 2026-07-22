@@ -10,8 +10,10 @@ import { OnboardingSitesStep } from '../components/onboarding/OnboardingSitesSte
 import { OnboardingSummaryStep } from '../components/onboarding/OnboardingSummaryStep';
 import { OnboardingTriggersStep } from '../components/onboarding/OnboardingTriggersStep';
 import { OnboardingWelcomeStep } from '../components/onboarding/OnboardingWelcomeStep';
+import { PrivacyConsentStep } from '../components/onboarding/PrivacyConsentStep';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { useAuth } from '../context/AuthProvider';
+import { useConsent } from '../context/ConsentProvider';
 import { useOnboarding } from '../context/OnboardingProvider';
 import { useActiveUserId } from '../hooks/useActiveUserId';
 import { todayISO } from '../lib/calendarMath';
@@ -35,13 +37,14 @@ import { saveNotificationSettings } from '../lib/notificationSettingsStore';
 import { colors, spacing } from './theme';
 
 const STEP_WELCOME = 0;
-const STEP_SITES = 1;
-const STEP_TRIGGERS = 2;
-const STEP_MEDICATIONS = 3;
-const STEP_SUMMARY = 4;
-const TOTAL_STEPS = 5;
+const STEP_PRIVACY_CONSENT = 1;
+const STEP_SITES = 2;
+const STEP_TRIGGERS = 3;
+const STEP_MEDICATIONS = 4;
+const STEP_SUMMARY = 5;
+const TOTAL_STEPS = 6;
 
-const STEP_TITLES = ['Welcome', 'Sites', 'Triggers', 'Medications', "You're all set"];
+const STEP_TITLES = ['Welcome', 'Privacy', 'Sites', 'Triggers', 'Medications', "You're all set"];
 const EDIT_TITLES: Record<number, string> = {
   [STEP_SITES]: 'Edit Sites',
   [STEP_TRIGGERS]: 'Edit Triggers',
@@ -57,6 +60,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { updateDisplayName } = useAuth();
   const { markOnboardingComplete } = useOnboarding();
+  const { refreshConsent } = useConsent();
   const activeUserId = useActiveUserId();
 
   const [step, setStep] = useState(STEP_WELCOME);
@@ -132,6 +136,14 @@ export default function OnboardingScreen() {
 
   const handleWelcomeContinue = async (trimmedName: string) => {
     await updateDisplayName(trimmedName);
+    goToStep(STEP_PRIVACY_CONSENT);
+  };
+
+  const handlePrivacyAccept = async () => {
+    // The consent record was just written under the real uid — refresh the
+    // gate's cached `consentCurrent` now, before finishOnboarding() flips
+    // onboardingComplete, or the stale `false` sends this user to /reconsent.
+    await refreshConsent();
     goToStep(STEP_SITES);
   };
 
@@ -283,7 +295,7 @@ export default function OnboardingScreen() {
 
   const inEditMode = editReturnTo !== null;
   const title = (inEditMode ? EDIT_TITLES[step] : undefined) ?? STEP_TITLES[step];
-  const showSharedChrome = step !== STEP_WELCOME && step !== STEP_SUMMARY;
+  const showSharedChrome = step !== STEP_WELCOME && step !== STEP_PRIVACY_CONSENT && step !== STEP_SUMMARY;
 
   const handleNext = () => {
     if (step === STEP_SITES) {
@@ -304,6 +316,8 @@ export default function OnboardingScreen() {
             onContinue={handleWelcomeContinue}
             onSkipSetup={markOnboardingComplete}
           />
+        ) : step === STEP_PRIVACY_CONSENT ? (
+          <PrivacyConsentStep onAccept={handlePrivacyAccept} />
         ) : step === STEP_SITES ? (
           <OnboardingSitesStep
             sites={sites}

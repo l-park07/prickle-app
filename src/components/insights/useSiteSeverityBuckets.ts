@@ -1,8 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getSiteSeries } from '../../lib/chartSelectors';
+import { getEarliestLogDate, getSiteSeries } from '../../lib/chartSelectors';
 import { buildBuckets, type Bucket, type GapMode, type Granularity } from '../../lib/chartSeries';
 import { db } from '../../lib/db';
 import { applyKeepIndex, sharedOmitKeepIndex } from './bucketChartLayout';
+
+/**
+ * The user's real earliest logged day, for a chart that always shows full history instead of
+ * filtering against a guessed-wide date constant (see chartSelectors.ts's getEarliestLogDate).
+ * null until loaded, and stays null forever for a user with no logs yet — callers fall back to
+ * "today" in that case, which collapses the range to a single, empty bucket.
+ */
+export function useEarliestLogDate(userId: string | null): string | null {
+  const [earliest, setEarliest] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) {
+      setEarliest(null);
+      return;
+    }
+    let cancelled = false;
+    getEarliestLogDate(db, userId).then((date) => {
+      if (!cancelled) setEarliest(date);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  return earliest;
+}
 
 /**
  * A chart's own "which sites are toggled on" state, seeded to "everything on" the first time a
