@@ -146,7 +146,7 @@ export const TREATMENT_LIBRARY: SeedTreatment[] = [
 
   // ── Non-drug therapies (NEA-recommended) ─────────────────────────────────
   { id: 'th-wet-wrap', name: 'Wet wrap therapy', aliases: ['wet wraps', 'wet wrapping'], kind: 'therapy', type: 'therapy', method: 'other' },
-  { id: 'th-bleach-bath', name: 'Bleach bath (dilute)', aliases: ['sodium hypochlorite bath'], kind: 'therapy', type: 'therapy', method: 'bath' },
+  { id: 'th-bleach-bath', name: 'Bleach bath', aliases: [], kind: 'therapy', type: 'therapy', method: 'bath' },
   { id: 'th-soak-and-seal', name: 'Soak and seal', aliases: ['bathe and moisturize'], kind: 'therapy', type: 'therapy', method: 'bath' },
   { id: 'th-oatmeal-bath', name: 'Colloidal oatmeal bath', aliases: ['oatmeal bath', 'Aveeno bath'], kind: 'therapy', type: 'otc', method: 'bath' },
   { id: 'th-phototherapy', name: 'Phototherapy (NB-UVB)', aliases: ['light therapy', 'UVB', 'narrowband UVB'], kind: 'therapy', type: 'therapy', method: 'phototherapy' },
@@ -154,12 +154,20 @@ export const TREATMENT_LIBRARY: SeedTreatment[] = [
 ];
 
 /**
- * The common/brand name for a stored treatment's canonical `name` (e.g.
- * "Upadacitinib" -> "Rinvoq"), for display only — not used for matching.
- * Returns null for a free-typed name or a library entry with no aliases.
+ * The complementary name to show alongside a stored treatment's `name`, for
+ * display only — not used for matching. A treatment can be stored under
+ * either its generic name or a brand alias (whichever the user searched
+ * under, see LibraryTreatmentMatch.matchedName), so this looks it up either
+ * way and returns whichever side wasn't stored: "Upadacitinib" -> "Rinvoq",
+ * but also "Rinvoq" -> "Upadacitinib". Returns null for a free-typed name or
+ * a library entry with no aliases.
  */
 export function findCommonName(name: string): string | null {
   const normalized = name.trim().toLowerCase();
-  const entry = TREATMENT_LIBRARY.find((e) => e.name.toLowerCase() === normalized);
-  return entry?.aliases[0] ?? null;
+  const entry = TREATMENT_LIBRARY.find(
+    (e) => e.name.toLowerCase() === normalized || e.aliases.some((a) => a.toLowerCase() === normalized)
+  );
+  if (!entry) return null;
+  if (entry.name.toLowerCase() === normalized) return entry.aliases[0] ?? null;
+  return entry.name;
 }

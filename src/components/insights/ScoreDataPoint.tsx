@@ -34,7 +34,7 @@ export function ScoreDataPoint({ point, metricLabel, selected, onSelect }: Score
       accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={`week of ${formatFriendlyDate(point.weekStart)}, ${metricLabel} ${point.score}${bandClause}`}
-      style={[styles.dot, selected ? styles.dotSelected : null]}
+      style={[styles.dot, selected ? styles.dotSelected : styles.dotHidden]}
     >
       {/* A halo, not a bigger dot — the Pressable itself stays exactly DOT_SIZE (see the note
           above), so gifted-charts' own centering math never drifts from what's actually
@@ -54,6 +54,13 @@ const styles = StyleSheet.create({
   },
   dotSelected: {
     backgroundColor: colors.accent,
+  },
+  // Invisible rather than unmounted: keeps the exact same tap target/hit-slop and
+  // accessibilityLabel at every point (so tapping a specific point still works, and screen
+  // readers still find each week), while a long run of weekly entries stops reading as a solid
+  // row of dots along the line — only the selected point actually shows a marker.
+  dotHidden: {
+    opacity: 0,
   },
   ring: {
     position: 'absolute',

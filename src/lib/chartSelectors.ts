@@ -668,3 +668,160 @@ export function pivotToWide(points: SeriesPoint[]): Record<string, unknown>[] {
     String(a.date).localeCompare(String(b.date))
   );
 }
+
+export interface WorstSeverityPhoto {
+  siteId: string;
+  siteName: string;
+  photoId: string;
+  localUri: string;
+  /** The stored snapshot score (photos.score) — never recomputed against the site's current scores. */
+  score: number;
+  takenAt: string;
+}
+
+/**
+ * For each site with at least one qualifying photo in the window, the single non-deleted,
+ * scored photo with the highest STORED score — ties broken by most recent taken_at. Uses
+ * ROW_NUMBER() rather than a bare MAX()/GROUP BY so the tie-break is deterministic (SQLite's
+ * "bare column comes from the max row" trick doesn't define which row wins a tie).
+ *
+ * Includes sites regardless of is_active: this is a historical "for your records" summary
+ * (see exportSummary.ts), not the live Insights charts' "what am I tracking now" convention
+ * (getActiveSites) — a site the user has since stopped tracking may still be exactly what a
+ * PCP visit needs to see. A soft-deleted site (deleted_at) is excluded, same as everywhere else.
+ *
+ * date(p.taken_at) because taken_at is a full ISO timestamp (see managePhotos.ts/log.tsx), while
+ * from/to are 'YYYY-MM-DD' — a bare string BETWEEN would wrongly exclude same-day photos taken
+ * after midnight UTC.
+ */
+export async function getWorstSeverityPhotoPerSite(
+  db: SQLiteDatabase,
+  userId: string,
+  from: string,
+  to: string
+): Promise<WorstSeverityPhoto[]> {
+  const rows = await db.getAllAsync<{
+    site_id: string;
+    site_name: string;
+    photo_id: string;
+    local_uri: string;
+    score: number;
+    taken_at: string;
+  }>(
+    `WITH ranked AS (
+       SELECT p.site_id AS site_id,
+              s.name AS site_name,
+              p.id AS photo_id,
+              p.local_uri AS local_uri,
+              p.score AS score,
+              p.taken_at AS taken_at,
+              ROW_NUMBER() OVER (
+                PARTITION BY p.site_id
+                ORDER BY p.score DESC, p.taken_at DESC
+              ) AS rn
+         FROM photos p
+         JOIN sites s ON s.id = p.site_id AND s.user_id = p.user_id AND s.deleted_at IS NULL
+        WHERE p.user_id = ?
+          AND p.deleted_at IS NULL
+          AND p.site_id IS NOT NULL
+          AND p.score IS NOT NULL
+          AND date(p.taken_at) BETWEEN ? AND ?
+     )
+     SELECT site_id, site_name, photo_id, local_uri, score, taken_at
+       FROM ranked
+      WHERE rn = 1
+      ORDER BY site_name ASC`,
+    [userId, from, to]
+  );
+  return rows.map((r) => ({
+    siteId: r.site_id,
+    siteName: r.site_name,
+    photoId: r.photo_id,
+    localUri: r.local_uri,
+    score: r.score,
+    takenAt: r.taken_at,
+  }));
+}
+
+export interface MedicationHistoryRow {
+  id: string;
+  name: string;
+  isPrn: boolean;
+  cadenceEvery: number | null;
+  cadenceUnit: CadenceUnit | null;
+  activeCount: number | null;
+  activeUnit: WindowUnit | null;
+  restCount: number | null;
+  restUnit: WindowUnit | null;
+  /** First/last log_date (within the window) that this medication was actually marked taken —
+   *  the real used-span, not the medication row's own created_at/updated_at. */
+  firstUsed: string;
+  lastUsed: string;
+  /** When the user first added this medication to their tracked list (medications.created_at,
+   *  'YYYY-MM-DD') — distinct from firstUsed: a medication can be added before it's ever logged. */
+  addedAt: string;
+}
+
+/**
+ * Every medication actually logged at least once in the window, with its real first/last used
+ * date — for exportSummary.ts's "history" section. Deliberately not filtered to is_active: a
+ * medication stopped since is still part of the period's real history. A soft-deleted medication
+ * row (the user removed a mistaken entry entirely) is excluded, same as everywhere else.
+ */
+export async function getMedicationHistory(
+  db: SQLiteDatabase,
+  userId: string,
+  from: string,
+  to: string
+): Promise<MedicationHistoryRow[]> {
+  const rows = await db.getAllAsync<{
+    id: string;
+    name: string;
+    is_prn: number;
+    cadence_every: number | null;
+    cadence_unit: CadenceUnit | null;
+    active_count: number | null;
+    active_unit: WindowUnit | null;
+    rest_count: number | null;
+    rest_unit: WindowUnit | null;
+    created_at: string;
+    first_used: string;
+    last_used: string;
+  }>(
+    `SELECT m.id AS id,
+            m.name AS name,
+            m.is_prn AS is_prn,
+            m.cadence_every AS cadence_every,
+            m.cadence_unit AS cadence_unit,
+            m.active_count AS active_count,
+            m.active_unit AS active_unit,
+            m.rest_count AS rest_count,
+            m.rest_unit AS rest_unit,
+            m.created_at AS created_at,
+            MIN(d.log_date) AS first_used,
+            MAX(d.log_date) AS last_used
+       FROM medications m
+       JOIN log_medications lm ON lm.medication_id = m.id AND lm.deleted_at IS NULL
+       JOIN daily_logs d ON d.id = lm.log_id AND d.deleted_at IS NULL
+      WHERE m.user_id = ?
+        AND m.deleted_at IS NULL
+        AND d.log_date BETWEEN ? AND ?
+      GROUP BY m.id
+      ORDER BY m.name ASC`,
+    [userId, from, to]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    isPrn: r.is_prn === 1,
+    cadenceEvery: r.cadence_every,
+    cadenceUnit: r.cadence_unit,
+    activeCount: r.active_count,
+    activeUnit: r.active_unit,
+    restCount: r.rest_count,
+    restUnit: r.rest_unit,
+    firstUsed: r.first_used,
+    lastUsed: r.last_used,
+    addedAt: r.created_at.slice(0, 10),
+  }));
+}

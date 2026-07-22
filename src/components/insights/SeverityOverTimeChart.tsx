@@ -20,6 +20,9 @@ import { useActiveSiteSelection, useEarliestLogDate, useSiteSeverityBuckets } fr
 // Divides evenly into the 0-5 severity scale's 5 sections — avoids the fractional per-row-height
 // seam ScoreOverTime's comment warns about for POEM's 28 sections. Taller than a bare 5*40px so a
 // full-history line (many buckets) has real vertical room to read instead of looking squashed.
+// Also used as-is in print mode: shrinking it there just made the chart look squished without
+// actually reclaiming any page space (the PDF's per-page whitespace comes from page-break
+// placement, not chart height), so print mode keeps the same on-screen height.
 const CHART_HEIGHT = 260;
 const MIN_PLOT_WIDTH = 100;
 const TICK_LABEL_HEIGHT = 20;
@@ -33,6 +36,17 @@ interface SeverityOverTimeChartProps {
   sites: { id: string; name: string }[];
   /** From chartTheme.ts's assignSiteColors — at most MAX_SITE_LINES entries. */
   colorById: Record<string, string>;
+  /** Pins this chart to a specific range instead of its own internal preset state, and hides its
+   *  own TimeRangeControl (which would have no effect while pinned). Used by
+   *  ExportSummaryCaptureRig so every chart in the PDF summary shares one range — leave unset for
+   *  normal on-screen use, where each chart owns its own preset. */
+  rangePresetOverride?: RangePreset;
+  /** Renders just the chart plot on a plain white backdrop — no ChartCard chrome (title, export
+   *  icon, site toggle, time-range control, captions). Used by ExportSummaryCaptureRig: the PDF
+   *  puts its own heading/copy in the surrounding HTML, so capturing the on-screen card verbatim
+   *  would have baked the pink card fill, the toggle switches, and "Touch or drag..." into the
+   *  page image. Leave unset for normal on-screen use. */
+  printMode?: boolean;
 }
 
 /** First chart on the Insights tab: one line per active site. Fully self-contained — owns its own
@@ -41,7 +55,7 @@ interface SeverityOverTimeChartProps {
  *  and gaps always show ('break') — those two are implementation details, not choices worth
  *  surfacing. "All" means the user's real earliest logged day (see useEarliestLogDate), not
  *  RangeAndGranularityControls' ALL_TIME_FROM stand-in. */
-export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChartProps) {
+export function SeverityOverTimeChart({ sites, colorById, rangePresetOverride, printMode }: SeverityOverTimeChartProps) {
   const activeUserId = useActiveUserId();
   const [containerWidth, setContainerWidth] = useState(0);
   const shotRef = useRef<ViewShotRef>(null);
@@ -52,12 +66,13 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
   const today = todayISO();
   const earliestLogDate = useEarliestLogDate(activeUserId);
   const [rangePreset, setRangePreset] = useState<RangePreset>('all');
+  const effectiveRangePreset = rangePresetOverride ?? rangePreset;
   // 'all' means real full history — the earliest logged day, not rangeFromPreset's own ALL_TIME_FROM
   // stand-in (that constant exists so SeverityComparisonChart's date filter always has a concrete
   // bound to query with; here we actually know the true start, so we use it). Falls back to "today"
   // while earliestLogDate is still loading (or the user has never logged), which collapses the
   // range to a single, empty bucket. Every other preset is already a real relative date.
-  const from = rangePreset === 'all' ? (earliestLogDate ?? today) : rangeFromPreset(rangePreset, today).from;
+  const from = effectiveRangePreset === 'all' ? (earliestLogDate ?? today) : rangeFromPreset(effectiveRangePreset, today).from;
   const granularity = useMemo(() => autoGranularity(daysBetween(from, today)), [from, today]);
 
   const sitesById = useMemo(() => new Map(sites.map((s) => [s.id, s.name])), [sites]);
@@ -141,15 +156,25 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
           ) : null}
         </View>
       ) : null}
-      <TimeRangeControl value={rangePreset} onChange={setRangePreset} />
+      {rangePresetOverride === undefined ? <TimeRangeControl value={rangePreset} onChange={setRangePreset} /> : null}
     </>
   );
 
   if (activeSiteIds.length === 0) {
+    const message = chartableSites.length === 0 ? 'Add a site to see its trend here.' : 'Turn on a site above to see its trend.';
+    if (printMode) {
+      return (
+        <View style={styles.printWrap}>
+          <AppText variant="caption" color={colors.textSecondary} style={styles.emptyNote}>
+            {message}
+          </AppText>
+        </View>
+      );
+    }
     return (
       <ChartCard title="Symptom severity over time" headerRight={exportButton}>
         <AppText variant="caption" color={colors.textSecondary} style={styles.emptyNote}>
-          {chartableSites.length === 0 ? 'Add a site to see its trend here.' : 'Turn on a site above to see its trend.'}
+          {message}
         </AppText>
         {controls}
       </ChartCard>
@@ -165,9 +190,8 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
     ? `Severity 0 to 5 for ${siteNames}, ${formatBucketDate(bucketDates[0], granularity)} to ${formatBucketDate(bucketDates[bucketDates.length - 1], granularity)}.`
     : undefined;
 
-  return (
-    <ChartCard title="Symptom severity over time" headerRight={exportButton}>
-      <ViewShot ref={shotRef} style={styles.shotArea}>
+  const chart = (
+      <ViewShot ref={shotRef} style={[styles.shotArea, printMode ? styles.printShotArea : null]}>
         {!hasAnyValue ? (
           <AppText variant="caption" color={colors.textSecondary} style={styles.emptyNote}>
             Nothing logged in this stretch yet — that's alright.
@@ -252,6 +276,34 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
           </View>
         )}
       </ViewShot>
+  );
+
+  if (printMode) {
+    return (
+      <View style={styles.printWrap}>
+        {chart}
+        {/* On-screen, SiteToggleLegend (in `controls`, stripped out for print) already labels each
+            line's color — without it, print mode's colored lines would be unlabeled, so this is
+            print mode's own (non-interactive, no toggle switches) equivalent. */}
+        {hasAnyValue ? (
+          <View style={styles.printLegend}>
+            {activeSiteIds.map((id) => (
+              <View key={id} style={styles.printLegendRow}>
+                <View style={[styles.printLegendSwatch, { backgroundColor: colorById[id] }]} />
+                <AppText variant="caption" color={colors.textSecondary}>
+                  {sitesById.get(id) ?? 'Site'}
+                </AppText>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <ChartCard title="Symptom severity over time" headerRight={exportButton}>
+      {chart}
       {hasAnyValue ? (
         <AppText variant="caption" color={colors.textSecondary}>
           Touch or drag the chart to see each site's score for a day.
@@ -272,6 +324,29 @@ const styles = StyleSheet.create({
   },
   shotArea: {
     backgroundColor: colors.surfaceAlt,
+  },
+  printShotArea: {
+    backgroundColor: colors.surface,
+  },
+  printWrap: {
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+  },
+  printLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    paddingTop: spacing.xs,
+  },
+  printLegendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  printLegendSwatch: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   emptyNote: {
     paddingVertical: spacing.md,

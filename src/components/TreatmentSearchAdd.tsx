@@ -78,7 +78,8 @@ export function TreatmentSearchAdd({
       );
     }
 
-    const { entry } = match;
+    const { entry, matchedName } = match;
+    const genericNamePrefix = matchedName !== entry.name ? `${entry.name} · ` : '';
     return (
       <Pressable
         key={key}
@@ -87,8 +88,9 @@ export function TreatmentSearchAdd({
         accessibilityRole="button"
       >
         <View style={styles.resultTextColumn}>
-          <AppText variant="body">{suggestion ? `Did you mean ${entry.name}?` : entry.name}</AppText>
+          <AppText variant="body">{suggestion ? `Did you mean ${matchedName}?` : matchedName}</AppText>
           <AppText variant="caption" color={colors.textSecondary}>
+            {genericNamePrefix}
             {TYPE_LABELS[entry.type]} · {METHOD_LABELS[entry.method]}
           </AppText>
         </View>

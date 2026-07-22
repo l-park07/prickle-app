@@ -37,6 +37,8 @@ export default function ProfileLayout() {
       <Stack.Screen name="account" options={{ title: 'Account' }} />
       <Stack.Screen name="privacy" options={{ title: 'Privacy' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+      <Stack.Screen name="about" options={{ title: 'About Prickle' }} />
+      <Stack.Screen name="credits" options={{ title: 'Credits & licences' }} />
     </Stack>
   );
 }

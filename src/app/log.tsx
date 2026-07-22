@@ -224,12 +224,12 @@ export default function LogModal() {
       );
       return;
     }
-    const id = await addTreatmentFromLibrary(db, activeUserId, match.entry);
+    const id = await addTreatmentFromLibrary(db, activeUserId, match.entry, match.matchedName);
     setMedications((prev) => [
       ...prev,
       {
         id,
-        name: match.entry.name,
+        name: match.matchedName,
         category: 'other',
         checked: true,
         type: match.entry.type,

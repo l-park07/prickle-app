@@ -5,6 +5,8 @@ import { ScoreOverTime } from './ScoreOverTime';
 
 interface PoemTrendChartProps {
   data: { weekStart: string; score: number }[];
+  /** See ScoreOverTime's printMode — used by ExportSummaryCaptureRig. */
+  printMode?: boolean;
 }
 
 // The instrument's own band names, verbatim — nothing invented here.
@@ -12,7 +14,7 @@ const POEM_REGION_LABELS = POEM_BANDS.map((b) => ({ label: b.label, midValue: (b
 
 /** Weekly POEM totals on a true time axis, with the five canonical severity bands as a backdrop.
  *  Owns its own gap-mode toggle (see ScoreOverTime) — independent of every other Insights chart. */
-export function PoemTrendChart({ data }: PoemTrendChartProps) {
+export function PoemTrendChart({ data, printMode }: PoemTrendChartProps) {
   return (
     <ScoreOverTime
       title="POEM"
@@ -26,6 +28,7 @@ export function PoemTrendChart({ data }: PoemTrendChartProps) {
       regionLabels={POEM_REGION_LABELS}
       showsFullHistory
       emptyMessage="A couple more weekly checks and your POEM trend will show up here."
+      printMode={printMode}
     />
   );
 }

@@ -87,6 +87,11 @@ export interface SavedTreatmentMatch {
 export interface LibraryTreatmentMatch {
   kind: 'library';
   entry: SeedTreatment;
+  /** Whichever of entry.name/aliases the query actually matched — e.g. "Opzelura" rather
+   *  than "Ruxolitinib cream" when that's what the user typed/recognized. This is what gets
+   *  displayed AND saved as the treatment's name (see addTreatmentFromLibrary), so a brand
+   *  name the user searched under keeps showing up as that brand name later, not the generic. */
+  matchedName: string;
 }
 
 export type TreatmentMatch = SavedTreatmentMatch | LibraryTreatmentMatch;
@@ -103,9 +108,11 @@ function activeLibraryEntries(): SeedTreatment[] {
   return TREATMENT_LIBRARY.filter((e) => !e.retired);
 }
 
-function matchesLibraryEntry(entry: SeedTreatment, normalizedQuery: string): boolean {
-  if (normalizeTreatmentQuery(entry.name).includes(normalizedQuery)) return true;
-  return entry.aliases.some((alias) => normalizeTreatmentQuery(alias).includes(normalizedQuery));
+/** Which of entry.name/aliases the (normalized) query matches, or null if none do —
+ *  entry.name takes priority so an exact generic-name match never loses to an alias. */
+function matchingNameForQuery(entry: SeedTreatment, normalizedQuery: string): string | null {
+  if (normalizeTreatmentQuery(entry.name).includes(normalizedQuery)) return entry.name;
+  return entry.aliases.find((alias) => normalizeTreatmentQuery(alias).includes(normalizedQuery)) ?? null;
 }
 
 function fuzzySuggestions(
@@ -128,11 +135,17 @@ function fuzzySuggestions(
 
   for (const entry of activeLibraryEntries()) {
     const names = [entry.name, ...entry.aliases];
-    const bestDistance = Math.min(
-      ...names.map((name) => levenshteinDistance(normalizedQuery, normalizeTreatmentQuery(name)))
-    );
+    let bestName = entry.name;
+    let bestDistance = Infinity;
+    for (const name of names) {
+      const distance = levenshteinDistance(normalizedQuery, normalizeTreatmentQuery(name));
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestName = name;
+      }
+    }
     if (bestDistance <= MAX_FUZZY_DISTANCE) {
-      candidates.push({ match: { kind: 'library', entry }, distance: bestDistance });
+      candidates.push({ match: { kind: 'library', entry, matchedName: bestName }, distance: bestDistance });
     }
   }
 
@@ -163,8 +176,9 @@ export function getTreatmentSearchResults(
     .map((t) => ({ kind: 'saved', treatmentId: t.id, name: t.name }));
 
   const libraryMatches: LibraryTreatmentMatch[] = activeLibraryEntries()
-    .filter((entry) => matchesLibraryEntry(entry, normalizedQuery))
-    .map((entry) => ({ kind: 'library', entry }));
+    .map((entry) => ({ entry, matchedName: matchingNameForQuery(entry, normalizedQuery) }))
+    .filter((x): x is { entry: SeedTreatment; matchedName: string } => x.matchedName !== null)
+    .map(({ entry, matchedName }) => ({ kind: 'library', entry, matchedName }));
 
   if (savedMatches.length > 0 || libraryMatches.length > 0) {
     return [...savedMatches, ...libraryMatches];
@@ -180,11 +194,17 @@ export function getTreatmentSearchResults(
  * prefilled — those belong to the schedule editor. Plain insert, no
  * revive/dedup at this layer (tier-1 matching in getTreatmentSearchResults
  * is what steers the user to the existing row instead of calling this).
+ *
+ * `displayName` is whichever of entry.name/aliases the user actually matched
+ * on (LibraryTreatmentMatch.matchedName) — stored as the row's name so a
+ * brand name searched under (e.g. "Opzelura") keeps showing up as that brand
+ * name later, rather than reverting to the generic name once saved.
  */
 export async function addTreatmentFromLibrary(
   db: SQLiteDatabase,
   userId: string,
-  entry: SeedTreatment
+  entry: SeedTreatment,
+  displayName: string
 ): Promise<string> {
   const id = uuid();
   const ts = now();
@@ -192,7 +212,7 @@ export async function addTreatmentFromLibrary(
     `INSERT INTO medications
        (id, user_id, name, category, delivery_method, type, is_steroid, is_active, created_at, updated_at)
      VALUES (?, ?, ?, 'other', ?, ?, ?, 1, ?, ?)`,
-    [id, userId, entry.name, entry.method, entry.type, entry.isSteroid ? 1 : 0, ts, ts]
+    [id, userId, displayName, entry.method, entry.type, entry.isSteroid ? 1 : 0, ts, ts]
   );
   return id;
 }

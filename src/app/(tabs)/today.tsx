@@ -16,6 +16,7 @@ import { useActiveUserId } from '../../hooks/useActiveUserId';
 import { todayISO } from '../../lib/calendarMath';
 import { DayEntry, getDayEntry } from '../../lib/chartSelectors';
 import { db } from '../../lib/db';
+import { CATEGORY_LABELS, type TriggerRowCategory } from '../../lib/manageTriggers';
 import { DateAssessment, getAssessmentForDate, getNextAssessmentDate } from '../../lib/nextAssessments';
 import { TYPE_BADGE, formatTreatmentSummary } from '../../lib/treatmentDisplay';
 import { colors, spacing } from '../theme';
@@ -98,7 +99,13 @@ export default function Today() {
             <TodayMoodSection mood={moodScore} />
             <TodayChecklist
               title="Triggers"
-              items={entry.triggers.map((t) => ({ id: t.id, label: t.name, checked: t.checked }))}
+              items={entry.triggers.map((t) => ({
+                id: t.id,
+                label: t.name,
+                checked: t.checked,
+                detail: CATEGORY_LABELS[t.category as TriggerRowCategory] ?? t.category,
+                badge: t.watched ? 'Watching' : undefined,
+              }))}
               emptyLabel="No triggers set up yet"
             />
             <TodayChecklist

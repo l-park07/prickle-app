@@ -234,12 +234,12 @@ export default function OnboardingScreen() {
   const handleSelectMedicationMatch = async (match: TreatmentMatch) => {
     if (!activeUserId) return;
     if (match.kind === 'saved') return; // already on the list
-    const id = await addTreatmentFromLibrary(db, activeUserId, match.entry);
+    const id = await addTreatmentFromLibrary(db, activeUserId, match.entry, match.matchedName);
     setMedications((prev) => [
       ...prev,
       {
         id,
-        name: match.entry.name,
+        name: match.matchedName,
         category: 'other',
         checked: true,
         type: match.entry.type,

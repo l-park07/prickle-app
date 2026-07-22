@@ -66,6 +66,7 @@ export default function Profile() {
             label="Notifications"
             onPress={() => router.push('/profile/notifications')}
           />
+          <SettingsRow label="About Prickle" onPress={() => router.push('/profile/about')} />
           <View style={styles.toggleRow}>
             <CloudSyncToggle />
           </View>

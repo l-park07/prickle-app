@@ -3,8 +3,21 @@
  * screen's editable row (LogTreatmentsSection) and the Today tab's read-only
  * row (today.tsx), so the two always show identical text/badges.
  */
-import type { DeliveryMethod, TreatmentType, WindowUnit } from '../../content/treatmentLibrary';
+import type { CadenceUnit, DeliveryMethod, TreatmentType, WindowUnit } from '../../content/treatmentLibrary';
 import type { DayEntryMedication } from './chartSelectors';
+
+/** Exactly the fields formatScheduleSummary reads — narrower than DayEntryMedication so any
+ *  row shaped like this (e.g. exportSummary.ts's medication-history query, which has no
+ *  category/checked/deliveryMethod of its own) can be formatted without faking the rest. */
+export interface ScheduleFields {
+  isPrn: boolean;
+  cadenceEvery: number | null;
+  cadenceUnit: CadenceUnit | null;
+  activeCount: number | null;
+  activeUnit: WindowUnit | null;
+  restCount: number | null;
+  restUnit: WindowUnit | null;
+}
 
 export const TYPE_LABELS: Record<TreatmentType, string> = {
   rx: 'Prescription',
@@ -32,7 +45,7 @@ function formatWindow(count: number, unit: WindowUnit): string {
 }
 
 /** "5 days on / 2 weeks off", or null unless both sides of the cycle are set. */
-function formatCycleSummary(treatment: DayEntryMedication): string | null {
+function formatCycleSummary(treatment: ScheduleFields): string | null {
   if (!treatment.activeCount || !treatment.activeUnit || !treatment.restCount || !treatment.restUnit) {
     return null;
   }
@@ -42,8 +55,10 @@ function formatCycleSummary(treatment: DayEntryMedication): string | null {
   )} off`;
 }
 
-/** "Every 2 weeks", "As needed", "5 days on / 2 weeks off", or a combination — null if nothing's set. */
-function formatScheduleSummary(treatment: DayEntryMedication): string | null {
+/** "Every 2 weeks", "As needed", "5 days on / 2 weeks off", or a combination — null if nothing's set.
+ *  Exported for exportSummary.ts's medication-history section, which reuses this exact wording
+ *  rather than inventing its own "frequency" phrasing. */
+export function formatScheduleSummary(treatment: ScheduleFields): string | null {
   const parts: string[] = [];
   if (treatment.isPrn) {
     parts.push('As needed');

@@ -4,6 +4,8 @@ import { ScoreOverTime } from './ScoreOverTime';
 
 interface RecapTrendChartProps {
   data: { weekStart: string; score: number }[];
+  /** See ScoreOverTime's printMode — used by ExportSummaryCaptureRig. */
+  printMode?: boolean;
 }
 
 // Orientation labels for the gradient direction already established in recapGradient.ts's
@@ -17,7 +19,7 @@ const RECAP_REGION_LABELS = [
 /** Weekly RECAP totals on a true time axis, with a soft controlled->uncontrolled gradient backdrop.
  *  No band prop: RECAP has no published bands, so none are invented. Owns its own gap-mode toggle
  *  (see ScoreOverTime) — independent of every other Insights chart. */
-export function RecapTrendChart({ data }: RecapTrendChartProps) {
+export function RecapTrendChart({ data, printMode }: RecapTrendChartProps) {
   return (
     <ScoreOverTime
       title="RECAP"
@@ -30,6 +32,7 @@ export function RecapTrendChart({ data }: RecapTrendChartProps) {
       regionLabels={RECAP_REGION_LABELS}
       showsFullHistory
       emptyMessage="A couple more weekly checks and your RECAP trend will show up here."
+      printMode={printMode}
     />
   );
 }

@@ -40,6 +40,12 @@ interface ScoreOverTimeProps {
   /** Shows a "full history" note under the attribution — true for both current usages (POEM/RECAP always auto-fit to all data, ignoring the tab's range picker). */
   showsFullHistory?: boolean;
   emptyMessage: string;
+  /** Renders just the chart plot on a plain white backdrop — no ChartCard chrome (title,
+   *  attribution, export icon, gap-mode control, "Tap or drag..." caption). Used by
+   *  ExportSummaryCaptureRig: the PDF puts its own heading/copyright in the surrounding HTML, so
+   *  capturing the on-screen card verbatim would have baked the pink card fill and controls into
+   *  the page image. Leave unset for normal on-screen use. */
+  printMode?: boolean;
 }
 
 // A multiple of noOfSections' finest resolution (POEM's 28) so every section renders at an
@@ -69,12 +75,13 @@ function formatScoreWithBand(score: number, band: string | null): string {
  * midValue ascending (POEM_BANDS/RECAP's region lists both are). */
 function filterCrowdedLabels(
   labels: { label: string; midValue: number }[],
-  maxValue: number
+  maxValue: number,
+  chartHeight: number
 ): { label: string; midValue: number }[] {
   const kept: { label: string; midValue: number }[] = [];
   let lastTop: number | null = null;
   for (const region of labels) {
-    const top = plotTop(region.midValue, maxValue, CHART_HEIGHT);
+    const top = plotTop(region.midValue, maxValue, chartHeight);
     if (lastTop === null || Math.abs(top - lastTop) >= MIN_REGION_LABEL_GAP) {
       kept.push(region);
       lastTop = top;
@@ -96,7 +103,12 @@ export function ScoreOverTime({
   regionLabels,
   showsFullHistory,
   emptyMessage,
+  printMode,
 }: ScoreOverTimeProps) {
+  // Print mode keeps the same height as on-screen: shrinking it there previously just made the
+  // chart look squished without reclaiming any page space (the PDF's per-page whitespace comes
+  // from page-break placement, not chart height).
+  const chartHeight = CHART_HEIGHT;
   const [containerWidth, setContainerWidth] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [gapMode, setGapMode] = useState<GapMode>('break');
@@ -106,8 +118,8 @@ export function ScoreOverTime({
   const selectedPoint = selectedIndex != null ? (points[selectedIndex] ?? null) : null;
 
   const visibleRegionLabels = useMemo(
-    () => filterCrowdedLabels(regionLabels ?? [], maxValue),
-    [regionLabels, maxValue]
+    () => filterCrowdedLabels(regionLabels ?? [], maxValue, chartHeight),
+    [regionLabels, maxValue, chartHeight]
   );
 
   // gifted-charts renders the y-axis number gutter as a LEADING width on top of
@@ -180,6 +192,15 @@ export function ScoreOverTime({
   const gapModeControl = <GapModeControl value={gapMode} onChange={setGapMode} />;
 
   if (points.length < 2) {
+    if (printMode) {
+      return (
+        <View style={styles.printWrap}>
+          <AppText variant="caption" color={colors.textSecondary} style={styles.emptyNote}>
+            {emptyMessage}
+          </AppText>
+        </View>
+      );
+    }
     return (
       <ChartCard title={title} attribution={attribution} headerRight={exportButton}>
         {gapModeControl}
@@ -198,15 +219,13 @@ export function ScoreOverTime({
   // on-screen caption.
   const summary = `Weekly ${title} scores from ${shortDateLabel(points[0].weekStart)} to ${shortDateLabel(points[points.length - 1].weekStart)}, ranging from ${formatScoreWithBand(lowest.score, lowest.band)} to ${formatScoreWithBand(highest.score, highest.band)}.`;
 
-  return (
-    <ChartCard title={title} attribution={attribution} headerRight={exportButton}>
-      {gapModeControl}
-      {/* ViewShot wraps just the plot (not the gap-mode control above it) so a saved picture is
-          the chart itself, not the surrounding controls. chartMargin is a separate OUTER wrapper
-          (not the onLayout view itself) so onLayout measures the space actually left AFTER this
-          margin — the margin has to come off the width budget same as everything else, and
-          nesting it this way gets that for free instead of needing another manual subtraction. */}
-      <ViewShot ref={shotRef} style={styles.chartMargin}>
+  const chart = (
+      // ViewShot wraps just the plot (not the gap-mode control above it) so a saved picture is
+      // the chart itself, not the surrounding controls. chartMargin is a separate OUTER wrapper
+      // (not the onLayout view itself) so onLayout measures the space actually left AFTER this
+      // margin — the margin has to come off the width budget same as everything else, and
+      // nesting it this way gets that for free instead of needing another manual subtraction.
+      <ViewShot ref={shotRef} style={[styles.chartMargin, printMode ? styles.printBackdrop : null]}>
         <View onLayout={handleLayout} accessible accessibilityLabel={summary}>
           {containerWidth > 0 ? (
             <View style={styles.chartArea} {...panResponder.panHandlers}>
@@ -218,12 +237,14 @@ export function ScoreOverTime({
                   // Confined to the plot area (right of the y-axis number gutter) — matches
                   // where gifted-charts' own sectionColors stop for the POEM/bands case, so the
                   // gradient never bleeds behind the axis numbers the way a full-bleed fill would.
-                  style={styles.gradientFill}
+                  // height comes from props (printMode), so it can't live in the static
+                  // StyleSheet — merged onto the static gradientFill base instead.
+                  style={[styles.gradientFill, { height: chartHeight }]}
                 />
               ) : null}
               <LineChart
                 data={chartData}
-                height={CHART_HEIGHT}
+                height={chartHeight}
                 maxValue={maxValue}
                 noOfSections={noOfSections}
                 backgroundColor="transparent"
@@ -254,7 +275,7 @@ export function ScoreOverTime({
                 )}
               />
               {yAxisTicks.map((value) => {
-                const top = plotTop(value, maxValue, CHART_HEIGHT) - TICK_LABEL_HEIGHT / 2;
+                const top = plotTop(value, maxValue, chartHeight) - TICK_LABEL_HEIGHT / 2;
                 return (
                   <View key={value} pointerEvents="none" style={[styles.yAxisTick, { top }]}>
                     <AppText variant="caption" color={colors.textSecondary}>
@@ -264,7 +285,7 @@ export function ScoreOverTime({
                 );
               })}
               {visibleRegionLabels.map((region) => {
-                const top = plotTop(region.midValue, maxValue, CHART_HEIGHT) - TICK_LABEL_HEIGHT / 2;
+                const top = plotTop(region.midValue, maxValue, chartHeight) - TICK_LABEL_HEIGHT / 2;
                 return (
                   <View key={region.label} pointerEvents="none" style={[styles.regionLabel, { top }]}>
                     {/* A backdrop plate, not bare text over the chart — otherwise the data line
@@ -281,7 +302,16 @@ export function ScoreOverTime({
           ) : null}
         </View>
       </ViewShot>
+  );
 
+  if (printMode) {
+    return <View style={styles.printWrap}>{chart}</View>;
+  }
+
+  return (
+    <ChartCard title={title} attribution={attribution} headerRight={exportButton}>
+      {gapModeControl}
+      {chart}
       {selectedPoint ? (
         <View style={styles.selectedRow}>
           <View style={styles.selectedDot} />
@@ -316,6 +346,13 @@ const styles = StyleSheet.create({
   chartMargin: {
     paddingHorizontal: CHART_SIDE_MARGIN,
   },
+  printBackdrop: {
+    backgroundColor: colors.surface,
+  },
+  printWrap: {
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+  },
   emptyNote: {
     paddingVertical: spacing.md,
     textAlign: 'center',
@@ -327,11 +364,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     // top matches plotTop(maxValue, maxValue) — gifted-charts draws the maxValue line at
     // PLOT_Y_OFFSET, not 0, so starting the gradient at 0 left it floating 10px too high, short
-    // of the x-axis at the bottom. Explicit height, not `bottom: 0` — the chart's rendered area
-    // extends further below to fit the x-axis label row (labelsExtraHeight), and `bottom: 0`
+    // of the x-axis at the bottom. Explicit height (merged in per-render, see the JSX — it varies
+    // with printMode so it can't be a static value here), not `bottom: 0` — the chart's rendered
+    // area extends further below to fit the x-axis label row (labelsExtraHeight), and `bottom: 0`
     // was stretching the gradient down into that label strip too.
     top: PLOT_Y_OFFSET,
-    height: CHART_HEIGHT,
     left: Y_AXIS_LABEL_WIDTH,
     right: 0,
   },

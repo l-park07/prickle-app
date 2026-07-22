@@ -1,9 +1,8 @@
 /**
- * Prickle — credits, licences & acknowledgements
+ * Prickle — credits & licences
  * =============================================================================
  * THIS IS THE FILE YOU EDIT. Nothing here is logic; it's just content.
- * `profile/credits.tsx` renders it, and `public/credits.html` mirrors it.
- * When you change one, change the other.
+ * `profile/credits.tsx` renders it.
  *
  * WHY THIS FILE EXISTS (read before removing anything):
  *   - The Flaticon free licence requires attribution wherever the icons appear.
@@ -18,6 +17,10 @@
  * ADDING AN ICON: download the licence certificate at the same time, save it in
  * `docs/licences/`, and paste the attribution line Flaticon generates for you.
  * Reconstructing this list months later is miserable — do it as you go.
+ *
+ * OPEN SOURCE SECTION: entries are the app's direct dependencies (see
+ * package.json) with the licence each package's own package.json declares.
+ * Regenerate this list if dependencies change materially.
  * =============================================================================
  */
 
@@ -63,7 +66,7 @@ export const CREDIT_SECTIONS: CreditSection[] = [
   },
   {
     id: 'assessments',
-    title: 'Weekly assessments',
+    title: 'Assessments',
     blurb:
       'The POEM and RECAP questionnaires are used with permission and are reproduced word for word.',
     entries: [
@@ -76,66 +79,64 @@ export const CREDIT_SECTIONS: CreditSection[] = [
     ],
   },
   {
-    id: 'sources',
-    title: 'Where the information comes from',
-    blurb:
-      'The facts and trigger explanations in Prickle are drawn from these sources. Prickle is a tracking tool, not medical advice — your clinician knows your skin.',
+    id: 'open-source',
+    title: 'Open source',
+    blurb: 'Prickle is built on these open-source projects.',
     entries: [
+      { text: '@expo-google-fonts/open-sans — MIT AND OFL-1.1', url: 'https://github.com/expo/google-fonts' },
+      { text: '@expo/ui — MIT', url: 'https://github.com/expo/expo' },
       {
-        text: 'National Eczema Association',
-        url: 'https://nationaleczema.org',
+        text: '@react-native-async-storage/async-storage — MIT',
+        url: 'https://github.com/react-native-async-storage/async-storage',
       },
       {
-        text: 'Eczema Care Online',
-        url: 'https://www.eczemacareonline.org.uk',
+        text: '@react-native-vector-icons/ionicons — MIT',
+        url: 'https://github.com/react-native-vector-icons/vector-icons',
+      },
+      { text: 'Expo (expo, expo-router, and expo-* modules) — MIT', url: 'https://github.com/expo/expo' },
+      { text: 'Firebase JS SDK — Apache-2.0', url: 'https://github.com/firebase/firebase-js-sdk' },
+      { text: 'React — MIT', url: 'https://github.com/facebook/react' },
+      { text: 'React Native — MIT', url: 'https://github.com/facebook/react-native' },
+      {
+        text: 'react-native-gesture-handler — MIT',
+        url: 'https://github.com/software-mansion/react-native-gesture-handler',
+      },
+      {
+        text: 'react-native-gifted-charts — MIT',
+        url: 'https://github.com/Abhinandan-Kushwaha/react-native-gifted-charts',
+      },
+      {
+        text: 'react-native-reanimated — MIT',
+        url: 'https://github.com/software-mansion/react-native-reanimated',
+      },
+      {
+        text: 'react-native-safe-area-context — MIT',
+        url: 'https://github.com/AppAndFlow/react-native-safe-area-context',
+      },
+      {
+        text: 'react-native-screens — MIT',
+        url: 'https://github.com/software-mansion/react-native-screens',
+      },
+      { text: 'react-native-svg — MIT', url: 'https://github.com/react-native-community/react-native-svg' },
+      {
+        text: 'react-native-view-shot — MIT',
+        url: 'https://github.com/gre/react-native-view-shot',
+      },
+      { text: 'react-native-web — MIT', url: 'https://github.com/necolas/react-native-web' },
+      {
+        text: 'react-native-webview — MIT',
+        url: 'https://github.com/react-native-webview/react-native-webview',
+      },
+      {
+        text: 'react-native-worklets — MIT',
+        url: 'https://github.com/software-mansion/react-native-reanimated',
       },
     ],
   },
 ];
 
-/**
- * AI disclosure.
- * Deliberately scoped: tools helped with code and copy, not with the ideas,
- * the design, or the illustrations — and nothing in the shipped app uses AI.
- * That last sentence matters most; keep it.
- */
-export const AI_DISCLOSURE = {
-  title: 'How AI was used',
-  body: [
-    'Prickle was built with help from AI tools — Claude, Claude Code, and Gemini — for writing and reviewing code, and for drafting and editing text.',
-    'The idea behind Prickle, its design, its illustrations, and every decision about clinical content are human-made and human-reviewed.',
-    'Prickle itself contains no AI. Nothing you log is sent to a model, nothing is analysed or predicted, and your entries stay on your device.',
-  ],
-};
-
-/**
- * Acknowledgements.
- *
- * ⚠ Before shipping: confirm each person is happy to be named, and check
- * whether they want their title used. On a health app, a name with a clinical
- * title reads to some users as a medical endorsement of the product. If that
- * isn't what they've agreed to, drop the title or the name.
- */
-export const THANKS = {
-  title: 'Thank you',
-  blurb: 'Prickle is better for the time, advice, and encouragement of:',
-  people: [
-    'Aisha Hashimi',
-    'Aaron Rossman',
-    'Katie Britt',
-    'Julie Gehring',
-    'Dr. Andrew Heggland',
-    'Dr. Richelle deMayo',
-    'Erin Smith',
-    'Mike Rota',
-    'Jung Park',
-    'Beth Park',
-  ],
-};
-
 /** Shown at the foot of the credits screen. */
 export const CREDITS_FOOTER = {
-  ossLabel: 'Open-source licences',
   webLabel: 'Full credits on getprickle.app',
   webUrl: 'https://getprickle.app/credits.html',
 };
