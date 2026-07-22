@@ -26,7 +26,7 @@
  *   (ointment > cream > lotion). Treat it as a rough display/grouping hint only.
  */
 
-export type TreatmentType = 'rx' | 'otc' | 'both' | 'therapy';
+export type TreatmentType = 'rx' | 'otc' | 'therapy';
 
 export type DeliveryMethod =
   | 'topical'
@@ -78,7 +78,8 @@ export interface SeedTreatment {
 
 export const TREATMENT_LIBRARY: SeedTreatment[] = [
   // ── Topical corticosteroids (TCS) ────────────────────────────────────────
-  { id: 'tcs-hydrocortisone', name: 'Hydrocortisone', aliases: ['Cortaid', 'Cortizone-10', 'hydrocortisone 1%', 'hydrocortisone 2.5%'], kind: 'tcs', type: 'both', method: 'topical', isSteroid: true, potency: 'mild', suggestCycle: true },
+  // 'otc' is a default — 2.5% strength is often Rx-only; switchable from "Add details".
+  { id: 'tcs-hydrocortisone', name: 'Hydrocortisone', aliases: ['Cortaid', 'Cortizone-10', 'hydrocortisone 1%', 'hydrocortisone 2.5%'], kind: 'tcs', type: 'otc', method: 'topical', isSteroid: true, potency: 'mild', suggestCycle: true },
   { id: 'tcs-desonide', name: 'Desonide', aliases: ['Desonate', 'DesOwen', 'Verdeso'], kind: 'tcs', type: 'rx', method: 'topical', isSteroid: true, potency: 'mild', suggestCycle: true },
   { id: 'tcs-alclometasone', name: 'Alclometasone dipropionate', aliases: ['Aclovate'], kind: 'tcs', type: 'rx', method: 'topical', isSteroid: true, potency: 'mild', suggestCycle: true },
   { id: 'tcs-triamcinolone', name: 'Triamcinolone acetonide', aliases: ['Kenalog', 'Triderm'], kind: 'tcs', type: 'rx', method: 'topical', isSteroid: true, potency: 'moderate', suggestCycle: true },
@@ -151,3 +152,14 @@ export const TREATMENT_LIBRARY: SeedTreatment[] = [
   { id: 'th-phototherapy', name: 'Phototherapy (NB-UVB)', aliases: ['light therapy', 'UVB', 'narrowband UVB'], kind: 'therapy', type: 'therapy', method: 'phototherapy' },
   { id: 'th-cool-compress', name: 'Cool compress', aliases: ['cold compress'], kind: 'therapy', type: 'therapy', method: 'other' },
 ];
+
+/**
+ * The common/brand name for a stored treatment's canonical `name` (e.g.
+ * "Upadacitinib" -> "Rinvoq"), for display only — not used for matching.
+ * Returns null for a free-typed name or a library entry with no aliases.
+ */
+export function findCommonName(name: string): string | null {
+  const normalized = name.trim().toLowerCase();
+  const entry = TREATMENT_LIBRARY.find((e) => e.name.toLowerCase() === normalized);
+  return entry?.aliases[0] ?? null;
+}

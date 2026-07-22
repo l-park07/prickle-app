@@ -11,8 +11,10 @@ import { bucketMonthLabels, bucketsToLineSegments, formatBucketDate } from './bu
 import { axisTextStyle, CHART_INITIAL_SPACING, plotTop, Y_AXIS_LABEL_WIDTH } from './chartTheme';
 import { ChartCard } from './ChartCard';
 import { ChartExportButton } from './ChartExportButton';
+import { rangeFromPreset, type RangePreset } from './RangeAndGranularityControls';
 import { evenTicks } from './scoreChartLayout';
 import { SiteToggleLegend } from './SiteToggleLegend';
+import { TimeRangeControl } from './TimeRangeControl';
 import { useActiveSiteSelection, useEarliestLogDate, useSiteSeverityBuckets } from './useSiteSeverityBuckets';
 
 // Divides evenly into the 0-5 severity scale's 5 sections — avoids the fractional per-row-height
@@ -34,10 +36,11 @@ interface SeverityOverTimeChartProps {
 }
 
 /** First chart on the Insights tab: one line per active site. Fully self-contained — owns its own
- *  site toggle. Unlike SeverityComparisonChart, this one has no time-range/granularity/gap-mode
- *  controls: it always plots the user's real full history (see useEarliestLogDate), auto-picking a
- *  granularity (autoGranularity) and always showing gaps ('break') — the one control worth keeping
- *  is which sites are on, so that's the only one exposed. */
+ *  site toggle and time-range preset. Unlike SeverityComparisonChart, there's no group-by or
+ *  gap-mode control: granularity is always auto-picked from the selected range (autoGranularity)
+ *  and gaps always show ('break') — those two are implementation details, not choices worth
+ *  surfacing. "All" means the user's real earliest logged day (see useEarliestLogDate), not
+ *  RangeAndGranularityControls' ALL_TIME_FROM stand-in. */
 export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChartProps) {
   const activeUserId = useActiveUserId();
   const [containerWidth, setContainerWidth] = useState(0);
@@ -48,10 +51,13 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
 
   const today = todayISO();
   const earliestLogDate = useEarliestLogDate(activeUserId);
-  // Falls back to "today" while earliestLogDate is still loading (or the user has never logged) —
-  // collapses to a single, empty bucket rather than a guessed-wide date constant (see
-  // getEarliestLogDate's comment on why there's no bound that's truly guaranteed to cover "all of it").
-  const from = earliestLogDate ?? today;
+  const [rangePreset, setRangePreset] = useState<RangePreset>('all');
+  // 'all' means real full history — the earliest logged day, not rangeFromPreset's own ALL_TIME_FROM
+  // stand-in (that constant exists so SeverityComparisonChart's date filter always has a concrete
+  // bound to query with; here we actually know the true start, so we use it). Falls back to "today"
+  // while earliestLogDate is still loading (or the user has never logged), which collapses the
+  // range to a single, empty bucket. Every other preset is already a real relative date.
+  const from = rangePreset === 'all' ? (earliestLogDate ?? today) : rangeFromPreset(rangePreset, today).from;
   const granularity = useMemo(() => autoGranularity(daysBetween(from, today)), [from, today]);
 
   const sitesById = useMemo(() => new Map(sites.map((s) => [s.id, s.name])), [sites]);
@@ -120,20 +126,24 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
 
   const exportButton = <ChartExportButton shotRef={shotRef} chartTitle="Symptom severity over time" />;
 
-  const siteControls =
-    chartableSites.length > 0 ? (
-      <View style={styles.section}>
-        <AppText variant="label" color={colors.textSecondary}>
-          Sites
-        </AppText>
-        <SiteToggleLegend sites={chartableSites} colorById={colorById} activeSiteIds={requestedActiveSiteIds} onChange={setRequestedActiveSiteIds} />
-        {sites.length > chartableSites.length ? (
-          <AppText variant="caption" color={colors.textSecondary}>
-            Showing your first {chartableSites.length} sites here — charts can only show that many lines at once.
+  const controls = (
+    <>
+      {chartableSites.length > 0 ? (
+        <View style={styles.section}>
+          <AppText variant="label" color={colors.textSecondary}>
+            Sites
           </AppText>
-        ) : null}
-      </View>
-    ) : null;
+          <SiteToggleLegend sites={chartableSites} colorById={colorById} activeSiteIds={requestedActiveSiteIds} onChange={setRequestedActiveSiteIds} />
+          {sites.length > chartableSites.length ? (
+            <AppText variant="caption" color={colors.textSecondary}>
+              Showing your first {chartableSites.length} sites here — charts can only show that many lines at once.
+            </AppText>
+          ) : null}
+        </View>
+      ) : null}
+      <TimeRangeControl value={rangePreset} onChange={setRangePreset} />
+    </>
+  );
 
   if (activeSiteIds.length === 0) {
     return (
@@ -141,7 +151,7 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
         <AppText variant="caption" color={colors.textSecondary} style={styles.emptyNote}>
           {chartableSites.length === 0 ? 'Add a site to see its trend here.' : 'Turn on a site above to see its trend.'}
         </AppText>
-        {siteControls}
+        {controls}
       </ChartCard>
     );
   }
@@ -247,7 +257,7 @@ export function SeverityOverTimeChart({ sites, colorById }: SeverityOverTimeChar
           Touch or drag the chart to see each site's score for a day.
         </AppText>
       ) : null}
-      {siteControls}
+      {controls}
     </ChartCard>
   );
 }

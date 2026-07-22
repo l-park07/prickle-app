@@ -18,7 +18,7 @@ export interface RangeState {
 // don't use this at all: they fetch with no date bound, see getPoemSeries/getRecapSeries.)
 const ALL_TIME_FROM = '2000-01-01';
 
-const RANGE_PRESETS: { value: RangePreset; label: string; days: number | null }[] = [
+export const RANGE_PRESETS: { value: RangePreset; label: string; days: number | null }[] = [
   { value: '30d', label: '30d', days: 30 },
   { value: '90d', label: '90d', days: 90 },
   { value: '6mo', label: '6mo', days: 182 },

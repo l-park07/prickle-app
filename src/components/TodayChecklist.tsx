@@ -8,6 +8,8 @@ interface TodayChecklistItem {
   label: string;
   checked: boolean;
   detail?: string;
+  badge?: string;
+  badgeVariant?: 'accent' | 'muted';
 }
 
 interface TodayChecklistProps {
@@ -27,7 +29,14 @@ export function TodayChecklist({ title, items, emptyLabel }: TodayChecklistProps
         </AppText>
       ) : (
         items.map((item) => (
-          <ChecklistRow key={item.id} label={item.label} checked={item.checked} detail={item.detail} />
+          <ChecklistRow
+            key={item.id}
+            label={item.label}
+            checked={item.checked}
+            detail={item.detail}
+            badge={item.badge}
+            badgeVariant={item.badgeVariant}
+          />
         ))
       )}
     </View>

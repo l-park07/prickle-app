@@ -10,7 +10,7 @@ export const db = openDatabaseSync('prickle.db');
 export const dbReady = db.execAsync(SCHEMA_SQL).then(async () => {
   await ensureColumn(db, 'medications', 'delivery_method', 'TEXT');
   await ensureColumn(db, 'medications', 'frequency', 'TEXT');
-  await ensureColumn(db, 'medications', 'type', 'TEXT'); // 'rx' | 'otc' | 'both' | 'therapy', NULL = unset
+  await ensureColumn(db, 'medications', 'type', 'TEXT'); // 'rx' | 'otc' | 'therapy', NULL = unset
   await ensureColumn(db, 'medications', 'is_steroid', 'INTEGER'); // 0/1, NULL = unset (unknown, not "no")
   await ensureColumn(db, 'medications', 'cadence_every', 'INTEGER'); // NULL = not set
   await ensureColumn(db, 'medications', 'cadence_unit', 'TEXT'); // 'day' | 'week' | 'month', NULL = not set

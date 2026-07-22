@@ -20,7 +20,14 @@ import { todayISO } from '../lib/calendarMath';
 import { DayEntryMedication, DayEntrySite, DayEntryTrigger, getDayEntry } from '../lib/chartSelectors';
 import { db } from '../lib/db';
 import { insertDailyLog } from '../lib/insertDailyLog';
-import { addMedication, addSite, getActiveTrackedItemCounts, removeMedication, removeSite, TrackedItemCounts } from '../lib/manageTrackedItems';
+import { addSite, getActiveTrackedItemCounts, removeMedication, removeSite, TrackedItemCounts } from '../lib/manageTrackedItems';
+import {
+  addFreeTypedTreatment,
+  addTreatmentFromLibrary,
+  updateTreatmentDetails,
+  type TreatmentDetails,
+  type TreatmentMatch,
+} from '../lib/manageTreatments';
 import {
   addKnownTrigger,
   customSearchableTrigger,
@@ -80,10 +87,11 @@ export default function OnboardingScreen() {
   const [counts, setCounts] = useState<TrackedItemCounts>({ sites: 0, triggers: 0, medications: 0 });
   const [finishing, setFinishing] = useState(false);
 
-  // Pre-populate from any existing data — addSite/addMedication have no
-  // DB-level uniqueness constraint on name (addKnownTrigger does dedupe/revive
-  // itself), so an interrupted and resumed onboarding session without this
-  // would silently duplicate site/medication rows.
+  // Pre-populate from any existing data — addSite/addTreatmentFromLibrary/
+  // addFreeTypedTreatment have no DB-level uniqueness constraint on name
+  // (addKnownTrigger does dedupe/revive itself), so an interrupted and
+  // resumed onboarding session without this would silently duplicate
+  // site/medication rows.
   useEffect(() => {
     if (!activeUserId) return;
     let cancelled = false;
@@ -223,14 +231,39 @@ export default function OnboardingScreen() {
     setSearchableTriggers((prev) => markSearchableTriggerRemoved(prev, triggerId));
   };
 
-  const handleAddMedication = async (input: { name: string; deliveryMethod: string; frequency: string }) => {
+  const handleSelectMedicationMatch = async (match: TreatmentMatch) => {
     if (!activeUserId) return;
-    const id = await addMedication(db, activeUserId, input);
+    if (match.kind === 'saved') return; // already on the list
+    const id = await addTreatmentFromLibrary(db, activeUserId, match.entry);
     setMedications((prev) => [
       ...prev,
       {
         id,
-        name: input.name,
+        name: match.entry.name,
+        category: 'other',
+        checked: true,
+        type: match.entry.type,
+        deliveryMethod: match.entry.method,
+        isSteroid: match.entry.isSteroid ?? false,
+        cadenceEvery: null,
+        cadenceUnit: null,
+        isPrn: false,
+        activeCount: null,
+        activeUnit: null,
+        restCount: null,
+        restUnit: null,
+        restStartedAt: null,
+      },
+    ]);
+  };
+  const handleAddFreeTypedMedication = async (name: string) => {
+    if (!activeUserId) return;
+    const id = await addFreeTypedTreatment(db, activeUserId, name);
+    setMedications((prev) => [
+      ...prev,
+      {
+        id,
+        name: name.trim(),
         category: 'other',
         checked: true,
         type: null,
@@ -246,6 +279,10 @@ export default function OnboardingScreen() {
         restStartedAt: null,
       },
     ]);
+  };
+  const handleUpdateMedicationDetails = async (medicationId: string, details: TreatmentDetails) => {
+    await updateTreatmentDetails(db, medicationId, details);
+    setMedications((prev) => prev.map((m) => (m.id === medicationId ? { ...m, ...details } : m)));
   };
   const handleRemoveMedication = async (medicationId: string) => {
     await removeMedication(db, medicationId);
@@ -336,8 +373,10 @@ export default function OnboardingScreen() {
         ) : step === STEP_MEDICATIONS ? (
           <OnboardingMedicationsStep
             medications={medications}
-            onAddMedication={handleAddMedication}
+            onSelectMatch={handleSelectMedicationMatch}
+            onAddFreeTyped={handleAddFreeTypedMedication}
             onRemoveMedication={handleRemoveMedication}
+            onUpdateDetails={handleUpdateMedicationDetails}
           />
         ) : (
           <OnboardingSummaryStep

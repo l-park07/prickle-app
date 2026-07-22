@@ -1,44 +1,33 @@
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { colors, radius, spacing } from '../../app/theme';
-import { DELIVERY_METHODS, FREQUENCIES } from '../../lib/medicationOptions';
+import { findCommonName } from '../../../content/treatmentLibrary';
+import type { DayEntryMedication } from '../../lib/chartSelectors';
+import type { TreatmentDetails, TreatmentMatch } from '../../lib/manageTreatments';
+import { TYPE_BADGE, formatTreatmentSummary } from '../../lib/treatmentDisplay';
 import { AppText } from '../AppText';
-import { OptionDropdown } from '../OptionDropdown';
-
-export interface OnboardingMedication {
-  id: string;
-  name: string;
-}
+import { TreatmentDetailsEditor } from '../TreatmentDetailsEditor';
+import { TreatmentSearchAdd } from '../TreatmentSearchAdd';
 
 interface OnboardingMedicationsStepProps {
-  medications: OnboardingMedication[];
-  onAddMedication: (input: { name: string; deliveryMethod: string; frequency: string }) => void;
+  medications: DayEntryMedication[];
+  onSelectMatch: (match: TreatmentMatch) => void;
+  onAddFreeTyped: (name: string) => void;
   onRemoveMedication: (id: string) => void;
+  onUpdateDetails: (medicationId: string, details: TreatmentDetails) => void;
 }
 
-/** Step 3 (0-indexed) — establishes the master medication list, same add-flow as the Log modal. */
+/** Step 3 (0-indexed) — establishes the master medication list, on the same
+ * library-search add flow and expandable details editor as the Log screen. */
 export function OnboardingMedicationsStep({
   medications,
-  onAddMedication,
+  onSelectMatch,
+  onAddFreeTyped,
   onRemoveMedication,
+  onUpdateDetails,
 }: OnboardingMedicationsStepProps) {
-  const [deliveryMethod, setDeliveryMethod] = useState<string | null>(null);
-  const [customDelivery, setCustomDelivery] = useState('');
-  const [name, setName] = useState('');
-  const [frequency, setFrequency] = useState<string | null>(null);
-  const [customFrequency, setCustomFrequency] = useState('');
-
-  const handleAdd = () => {
-    const finalName = name.trim();
-    if (!finalName || !deliveryMethod || !frequency) return;
-    onAddMedication({ name: finalName, deliveryMethod, frequency });
-    setDeliveryMethod(null);
-    setCustomDelivery('');
-    setName('');
-    setFrequency(null);
-    setCustomFrequency('');
-  };
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
     <View style={styles.container}>
@@ -49,62 +38,66 @@ export function OnboardingMedicationsStep({
 
       {medications.length > 0 ? (
         <View style={styles.list}>
-          {medications.map((medication) => (
-            <View key={medication.id} style={styles.row}>
-              <AppText variant="body" style={styles.rowLabel}>
-                {medication.name}
-              </AppText>
-              <Pressable
-                onPress={() => onRemoveMedication(medication.id)}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${medication.name}`}
-                hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
-              >
-                <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-          ))}
+          {medications.map((medication) => {
+            const expanded = expandedId === medication.id;
+            const summary = formatTreatmentSummary(medication);
+            const badge = medication.type ? TYPE_BADGE[medication.type] : null;
+            const commonName = findCommonName(medication.name);
+            const label = commonName ? `${medication.name} (${commonName})` : medication.name;
+            return (
+              <View key={medication.id} style={styles.medicationBlock}>
+                <View style={styles.row}>
+                  <Pressable
+                    onPress={() => setExpandedId(expanded ? null : medication.id)}
+                    style={styles.rowTextColumn}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.labelRow}>
+                      <AppText variant="body" style={styles.rowLabel}>
+                        {label}
+                      </AppText>
+                      {badge ? (
+                        <View style={[styles.badge, badge.variant === 'muted' && styles.badgeMuted]}>
+                          <AppText
+                            variant="caption"
+                            color={badge.variant === 'muted' ? colors.textSecondary : colors.textInverse}
+                          >
+                            {badge.label}
+                          </AppText>
+                        </View>
+                      ) : null}
+                    </View>
+                    <AppText variant="caption" color={summary ? colors.textSecondary : colors.primary}>
+                      {summary ?? 'Add details'}
+                    </AppText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => onRemoveMedication(medication.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${medication.name}`}
+                    hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+                  </Pressable>
+                </View>
+                {expanded ? (
+                  <TreatmentDetailsEditor
+                    treatment={medication}
+                    onChange={(details) => onUpdateDetails(medication.id, details)}
+                    onClose={() => setExpandedId(null)}
+                  />
+                ) : null}
+              </View>
+            );
+          })}
         </View>
       ) : null}
 
-      <OptionDropdown
-        label="Delivery method"
-        options={DELIVERY_METHODS}
-        value={deliveryMethod}
-        onChange={setDeliveryMethod}
-        allowCustom
-        customValue={customDelivery}
-        onCustomChange={(text) => {
-          setCustomDelivery(text);
-          setDeliveryMethod(text);
-        }}
+      <TreatmentSearchAdd
+        existingTreatments={medications.map((m) => ({ id: m.id, name: m.name }))}
+        onSelectMatch={onSelectMatch}
+        onAddFreeTyped={onAddFreeTyped}
       />
-      <TextInput
-        style={styles.input}
-        value={name}
-        onChangeText={setName}
-        placeholder="Name (e.g. Hydrocortisone cream)"
-        placeholderTextColor={colors.textSecondary}
-      />
-      <OptionDropdown
-        label="Frequency"
-        options={FREQUENCIES}
-        value={frequency}
-        onChange={setFrequency}
-        allowCustom
-        customValue={customFrequency}
-        onCustomChange={(text) => {
-          setCustomFrequency(text);
-          setFrequency(text);
-        }}
-      />
-      {name.trim() && deliveryMethod && frequency ? (
-        <Pressable onPress={handleAdd} accessibilityRole="button">
-          <AppText variant="label" color={colors.primary}>
-            + Add medication
-          </AppText>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -116,20 +109,34 @@ const styles = StyleSheet.create({
   list: {
     gap: spacing.sm,
   },
+  medicationBlock: {
+    gap: spacing.sm,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  rowTextColumn: {
+    flex: 1,
   },
   rowLabel: {
     flex: 1,
   },
-  input: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  badge: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  badgeMuted: {
+    backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.border,
-    color: colors.textPrimary,
   },
 });

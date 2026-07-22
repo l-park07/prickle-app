@@ -40,32 +40,6 @@ export async function removeSite(db: SQLiteDatabase, siteId: string): Promise<vo
   );
 }
 
-export interface AddMedicationInput {
-  name: string;
-  deliveryMethod: string;
-  frequency: string;
-}
-
-/**
- * category defaults to 'other' — this flow collects delivery method and
- * frequency, not the drug-class category the column was originally built for.
- */
-export async function addMedication(
-  db: SQLiteDatabase,
-  userId: string,
-  input: AddMedicationInput
-): Promise<string> {
-  const id = uuid();
-  const ts = now();
-  await db.runAsync(
-    `INSERT INTO medications
-       (id, user_id, name, category, delivery_method, frequency, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, 'other', ?, ?, 1, ?, ?)`,
-    [id, userId, input.name, input.deliveryMethod, input.frequency, ts, ts]
-  );
-  return id;
-}
-
 export async function removeMedication(db: SQLiteDatabase, medicationId: string): Promise<void> {
   const ts = now();
   await db.runAsync(

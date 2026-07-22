@@ -12,12 +12,12 @@ import { PillSelect, type PillOption } from './PillSelect';
 interface TreatmentDetailsEditorProps {
   treatment: DayEntryMedication;
   onChange: (details: TreatmentDetails) => void;
+  onClose: () => void;
 }
 
 const TYPE_OPTIONS: PillOption<TreatmentType>[] = [
   { value: 'rx', label: 'Prescription' },
   { value: 'otc', label: 'OTC' },
-  { value: 'both', label: 'Rx or OTC' },
   { value: 'therapy', label: 'Therapy' },
 ];
 
@@ -45,11 +45,12 @@ const windowUnitOptions = (count: number): PillOption<WindowUnit>[] => [
 
 /**
  * Type/method/schedule editor for one treatment — the "Add details" panel for
- * a row in LogTreatmentsSection. Every field commits the full current state
- * immediately on change (see updateTreatmentDetails) — never on mount, so a
- * treatment with nothing set stays untouched until the user interacts.
+ * a row in LogTreatmentsSection. Fields only live in local state until Save
+ * commits the full draft at once (see updateTreatmentDetails); Cancel/the X
+ * just close without ever calling onChange, so nothing is written to the DB
+ * until the user explicitly saves.
  */
-export function TreatmentDetailsEditor({ treatment, onChange }: TreatmentDetailsEditorProps) {
+export function TreatmentDetailsEditor({ treatment, onChange, onClose }: TreatmentDetailsEditorProps) {
   const [type, setType] = useState(treatment.type);
   const [method, setMethod] = useState(treatment.deliveryMethod);
   const [isPrn, setIsPrn] = useState(treatment.isPrn);
@@ -65,7 +66,45 @@ export function TreatmentDetailsEditor({ treatment, onChange }: TreatmentDetails
   // once, so a manual collapse afterward isn't fought by re-renders.
   const [cycleExpanded, setCycleExpanded] = useState(treatment.isSteroid === true);
 
-  const commit = (overrides: Partial<TreatmentDetails>) => {
+  const handleTypeChange = (value: TreatmentType) => {
+    setType(value);
+  };
+
+  const handleMethodChange = (value: DeliveryMethod) => {
+    setMethod(value);
+  };
+
+  const handlePrnChange = (value: boolean) => {
+    setIsPrn(value);
+  };
+
+  const handleCadenceEveryChange = (value: number) => {
+    setCadenceEvery(value);
+  };
+
+  const handleCadenceUnitChange = (value: CadenceUnit) => {
+    setCadenceUnit(value);
+  };
+
+  const handleActiveCountChange = (value: number) => {
+    setActiveCount(value);
+  };
+
+  const handleActiveUnitChange = (value: WindowUnit) => {
+    setActiveUnit(value);
+    setActiveCount((prev) => prev ?? 1);
+  };
+
+  const handleRestCountChange = (value: number) => {
+    setRestCount(value);
+  };
+
+  const handleRestUnitChange = (value: WindowUnit) => {
+    setRestUnit(value);
+    setRestCount((prev) => prev ?? 1);
+  };
+
+  const handleSave = () => {
     onChange({
       type,
       deliveryMethod: method,
@@ -76,57 +115,12 @@ export function TreatmentDetailsEditor({ treatment, onChange }: TreatmentDetails
       activeUnit,
       restCount,
       restUnit,
-      ...overrides,
     });
+    onClose();
   };
 
-  const handleTypeChange = (value: TreatmentType) => {
-    setType(value);
-    commit({ type: value });
-  };
-
-  const handleMethodChange = (value: DeliveryMethod) => {
-    setMethod(value);
-    commit({ deliveryMethod: value });
-  };
-
-  const handlePrnChange = (value: boolean) => {
-    setIsPrn(value);
-    commit({ isPrn: value });
-  };
-
-  const handleCadenceEveryChange = (value: number) => {
-    setCadenceEvery(value);
-    commit({ cadenceEvery: value });
-  };
-
-  const handleCadenceUnitChange = (value: CadenceUnit) => {
-    setCadenceUnit(value);
-    commit({ cadenceUnit: value });
-  };
-
-  const handleActiveCountChange = (value: number) => {
-    setActiveCount(value);
-    commit({ activeCount: value, activeUnit });
-  };
-
-  const handleActiveUnitChange = (value: WindowUnit) => {
-    setActiveUnit(value);
-    const nextActiveCount = activeCount ?? 1;
-    setActiveCount(nextActiveCount);
-    commit({ activeUnit: value, activeCount: nextActiveCount });
-  };
-
-  const handleRestCountChange = (value: number) => {
-    setRestCount(value);
-    commit({ restCount: value, restUnit });
-  };
-
-  const handleRestUnitChange = (value: WindowUnit) => {
-    setRestUnit(value);
-    const nextRestCount = restCount ?? 1;
-    setRestCount(nextRestCount);
-    commit({ restUnit: value, restCount: nextRestCount });
+  const handleCancel = () => {
+    onClose();
   };
 
   const cycleLabel =
@@ -138,6 +132,20 @@ export function TreatmentDetailsEditor({ treatment, onChange }: TreatmentDetails
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <AppText variant="label" color={colors.textSecondary}>
+          Details
+        </AppText>
+        <Pressable
+          onPress={handleCancel}
+          accessibilityRole="button"
+          accessibilityLabel="Close without saving"
+          hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+        </Pressable>
+      </View>
+
       <View style={styles.field}>
         <AppText variant="label" color={colors.textSecondary}>
           Type
@@ -241,6 +249,19 @@ export function TreatmentDetailsEditor({ treatment, onChange }: TreatmentDetails
           </View>
         </View>
       ) : null}
+
+      <View style={styles.footer}>
+        <Pressable onPress={handleCancel} accessibilityRole="button">
+          <AppText variant="label" color={colors.textSecondary}>
+            Cancel
+          </AppText>
+        </Pressable>
+        <Pressable onPress={handleSave} accessibilityRole="button">
+          <AppText variant="label" color={colors.primary}>
+            Save
+          </AppText>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -252,6 +273,17 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.lg,
+    paddingTop: spacing.xs,
   },
   field: {
     gap: spacing.sm,

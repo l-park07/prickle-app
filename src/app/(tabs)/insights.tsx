@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { assignSiteColors } from '../../components/insights/chartTheme';
+import { ExportDataSection } from '../../components/insights/ExportDataSection';
 import { PoemTrendChart } from '../../components/insights/PoemTrendChart';
 import { RecapTrendChart } from '../../components/insights/RecapTrendChart';
 import { SeverityComparisonChart } from '../../components/insights/SeverityComparisonChart';
@@ -57,6 +58,7 @@ export default function Insights() {
         <PoemTrendChart data={poemSeries} />
         <RecapTrendChart data={recapSeries} />
         <SeverityComparisonChart sites={sites} colorById={colorById} />
+        <ExportDataSection />
       </ScrollView>
 
       <LogFab />

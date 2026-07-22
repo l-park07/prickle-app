@@ -11,11 +11,13 @@ import { TodayMoodSection } from '../../components/TodayMoodSection';
 import { TodayPhotosSection } from '../../components/TodayPhotosSection';
 import { TodaySitesSection } from '../../components/TodaySitesSection';
 import { WeeklyAssessmentLink } from '../../components/WeeklyAssessmentLink';
+import { findCommonName } from '../../../content/treatmentLibrary';
 import { useActiveUserId } from '../../hooks/useActiveUserId';
 import { todayISO } from '../../lib/calendarMath';
 import { DayEntry, getDayEntry } from '../../lib/chartSelectors';
 import { db } from '../../lib/db';
 import { DateAssessment, getAssessmentForDate, getNextAssessmentDate } from '../../lib/nextAssessments';
+import { TYPE_BADGE, formatTreatmentSummary } from '../../lib/treatmentDisplay';
 import { colors, spacing } from '../theme';
 
 export default function Today() {
@@ -101,12 +103,18 @@ export default function Today() {
             />
             <TodayChecklist
               title="Medications"
-              items={entry.medications.map((m) => ({
-                id: m.id,
-                label: m.name,
-                checked: m.checked,
-                detail: m.category,
-              }))}
+              items={entry.medications.map((m) => {
+                const commonName = findCommonName(m.name);
+                const badge = m.type ? TYPE_BADGE[m.type] : null;
+                return {
+                  id: m.id,
+                  label: commonName ? `${m.name} (${commonName})` : m.name,
+                  checked: m.checked,
+                  detail: formatTreatmentSummary(m) ?? undefined,
+                  badge: badge?.label,
+                  badgeVariant: badge?.variant,
+                };
+              })}
               emptyLabel="No medications set up yet"
             />
             <TodayPhotosSection photos={entry.photos} sites={entry.sites} date={resolvedDate} />

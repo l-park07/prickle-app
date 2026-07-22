@@ -1,20 +1,16 @@
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { colors, radius, spacing } from '../app/theme';
-import type { DeliveryMethod, TreatmentType, WindowUnit } from '../../content/treatmentLibrary';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { colors, spacing } from '../app/theme';
+import { findCommonName } from '../../content/treatmentLibrary';
 import { daysBetween, formatLongDate, todayISO } from '../lib/calendarMath';
 import type { DayEntryMedication } from '../lib/chartSelectors';
-import {
-  getRestEndDate,
-  getTreatmentSearchResults,
-  type TreatmentDetails,
-  type TreatmentMatch,
-  type TreatmentSearchResult,
-} from '../lib/manageTreatments';
+import { getRestEndDate, type TreatmentDetails, type TreatmentMatch } from '../lib/manageTreatments';
+import { TYPE_BADGE, formatTreatmentSummary } from '../lib/treatmentDisplay';
 import { AppText } from './AppText';
 import { LogCheckboxRow } from './LogCheckboxRow';
 import { TreatmentDetailsEditor } from './TreatmentDetailsEditor';
+import { TreatmentSearchAdd } from './TreatmentSearchAdd';
 
 interface LogTreatmentsSectionProps {
   treatments: DayEntryMedication[];
@@ -25,68 +21,6 @@ interface LogTreatmentsSectionProps {
   onUpdateDetails: (treatmentId: string, details: TreatmentDetails) => void;
   onStartRest: (treatmentId: string) => void;
   onCompleteRest: (treatmentId: string) => void;
-}
-
-const TYPE_LABELS: Record<TreatmentType, string> = {
-  rx: 'Prescription',
-  otc: 'OTC',
-  both: 'Rx or OTC',
-  therapy: 'Therapy',
-};
-
-const TYPE_BADGE: Record<TreatmentType, { label: string; variant: 'accent' | 'muted' }> = {
-  rx: { label: 'Rx', variant: 'accent' },
-  otc: { label: 'OTC', variant: 'muted' },
-  both: { label: 'Rx or OTC', variant: 'muted' },
-  therapy: { label: 'Therapy', variant: 'accent' },
-};
-
-const METHOD_LABELS: Record<DeliveryMethod, string> = {
-  topical: 'Topical',
-  oral: 'Oral',
-  injectable: 'Injectable',
-  phototherapy: 'Phototherapy',
-  bath: 'Bath',
-  other: 'Other',
-};
-
-function formatWindow(count: number, unit: WindowUnit): string {
-  return `${count} ${count === 1 ? unit : `${unit}s`}`;
-}
-
-/** "5 days on / 2 weeks off", or null unless both sides of the cycle are set. */
-function formatCycleSummary(treatment: DayEntryMedication): string | null {
-  if (!treatment.activeCount || !treatment.activeUnit || !treatment.restCount || !treatment.restUnit) {
-    return null;
-  }
-  return `${formatWindow(treatment.activeCount, treatment.activeUnit)} on / ${formatWindow(
-    treatment.restCount,
-    treatment.restUnit
-  )} off`;
-}
-
-/** "Every 2 weeks", "As needed", "5 days on / 2 weeks off", or a combination — null if nothing's set. */
-function formatScheduleSummary(treatment: DayEntryMedication): string | null {
-  const parts: string[] = [];
-  if (treatment.isPrn) {
-    parts.push('As needed');
-  } else if (treatment.cadenceEvery && treatment.cadenceUnit) {
-    const unit = treatment.cadenceEvery === 1 ? treatment.cadenceUnit : `${treatment.cadenceUnit}s`;
-    parts.push(`Every ${treatment.cadenceEvery} ${unit}`);
-  }
-  const cycle = formatCycleSummary(treatment);
-  if (cycle) parts.push(cycle);
-  return parts.length > 0 ? parts.join(' · ') : null;
-}
-
-/** Row caption: "Topical · Every 1 day", "5 days on / 2 weeks off", or null when nothing's set
- * (the caller renders that case as a tappable "Add details" placeholder instead). */
-function formatTreatmentSummary(treatment: DayEntryMedication): string | null {
-  const parts = [
-    treatment.deliveryMethod ? METHOD_LABELS[treatment.deliveryMethod] : null,
-    formatScheduleSummary(treatment),
-  ].filter((part): part is string => Boolean(part));
-  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 /** "Resting · 2 days left (can start July 23rd)" — daysLeft is always >= 1 by construction
@@ -110,8 +44,6 @@ export function LogTreatmentsSection({
   onStartRest,
   onCompleteRest,
 }: LogTreatmentsSectionProps) {
-  const [adding, setAdding] = useState(false);
-  const [query, setQuery] = useState('');
   const [expandedTreatmentId, setExpandedTreatmentId] = useState<string | null>(null);
   // Ids whose rest period has just ended — drives the dismissible "Rest complete" banner
   // independently of `treatments`, since onCompleteRest clears restStartedAt right away.
@@ -139,14 +71,6 @@ export function LogTreatmentsSection({
     });
   };
 
-  const trimmedQuery = query.trim();
-  const results: TreatmentSearchResult[] = trimmedQuery
-    ? getTreatmentSearchResults(
-        query,
-        treatments.map((t) => ({ id: t.id, name: t.name }))
-      )
-    : [];
-
   const confirmRemove = (treatment: DayEntryMedication) => {
     Alert.alert(
       'Remove this treatment?',
@@ -158,61 +82,9 @@ export function LogTreatmentsSection({
     );
   };
 
-  const resetAddFlow = () => {
-    setAdding(false);
-    setQuery('');
-  };
-
-  const handleSelectMatch = (match: TreatmentMatch) => {
-    onSelectMatch(match);
-    resetAddFlow();
-  };
-
-  const handleAddFreeTyped = () => {
-    if (!trimmedQuery) return;
-    onAddFreeTyped(trimmedQuery);
-    resetAddFlow();
-  };
-
-  const matchKey = (match: TreatmentMatch) =>
-    match.kind === 'saved' ? `saved-${match.treatmentId}` : `library-${match.entry.id}`;
-
-  const renderMatchRow = (match: TreatmentMatch, key: string, suggestion: boolean) => {
-    if (match.kind === 'saved') {
-      const alreadyChecked = treatments.find((t) => t.id === match.treatmentId)?.checked ?? false;
-      return (
-        <Pressable
-          key={key}
-          onPress={() => handleSelectMatch(match)}
-          style={styles.resultRow}
-          accessibilityRole="button"
-        >
-          <View style={styles.resultTextColumn}>
-            <AppText variant="body">{suggestion ? `Did you mean ${match.name}?` : match.name}</AppText>
-            <AppText variant="caption" color={colors.textSecondary}>
-              {alreadyChecked ? 'Checked for today' : 'You already track this — check it?'}
-            </AppText>
-          </View>
-        </Pressable>
-      );
-    }
-
-    const { entry } = match;
-    return (
-      <Pressable
-        key={key}
-        onPress={() => handleSelectMatch(match)}
-        style={styles.resultRow}
-        accessibilityRole="button"
-      >
-        <View style={styles.resultTextColumn}>
-          <AppText variant="body">{suggestion ? `Did you mean ${entry.name}?` : entry.name}</AppText>
-          <AppText variant="caption" color={colors.textSecondary}>
-            {TYPE_LABELS[entry.type]} · {METHOD_LABELS[entry.method]}
-          </AppText>
-        </View>
-      </Pressable>
-    );
+  const describeSavedMatch = (treatmentId: string) => {
+    const alreadyChecked = treatments.find((t) => t.id === treatmentId)?.checked ?? false;
+    return alreadyChecked ? 'Checked for today' : 'You already track this — check it?';
   };
 
   const hitSlop = { top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm };
@@ -279,12 +151,14 @@ export function LogTreatmentsSection({
           const expanded = expandedTreatmentId === treatment.id;
           const summary = formatTreatmentSummary(treatment);
           const badge = treatment.type ? TYPE_BADGE[treatment.type] : null;
+          const commonName = findCommonName(treatment.name);
+          const label = commonName ? `${treatment.name} (${commonName})` : treatment.name;
           return (
             <View key={treatment.id} style={styles.treatmentBlock}>
               <View style={styles.row}>
                 <View style={styles.checkboxWrap}>
                   <LogCheckboxRow
-                    label={treatment.name}
+                    label={label}
                     checked={treatment.checked}
                     detail={summary ?? 'Add details'}
                     detailColor={summary ? colors.textSecondary : colors.primary}
@@ -308,6 +182,7 @@ export function LogTreatmentsSection({
                 <TreatmentDetailsEditor
                   treatment={treatment}
                   onChange={(details) => onUpdateDetails(treatment.id, details)}
+                  onClose={() => setExpandedTreatmentId(null)}
                 />
               ) : null}
             </View>
@@ -315,47 +190,12 @@ export function LogTreatmentsSection({
         })
       )}
 
-      {adding ? (
-        <View style={styles.addForm}>
-          <TextInput
-            style={styles.input}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Treatment name…"
-            placeholderTextColor={colors.textSecondary}
-            autoFocus
-          />
-
-          {trimmedQuery ? (
-            <View style={styles.results}>
-              {results.map((result) =>
-                result.kind === 'suggestion'
-                  ? renderMatchRow(result.match, `suggestion-${matchKey(result.match)}`, true)
-                  : renderMatchRow(result, matchKey(result), false)
-              )}
-              <Pressable onPress={handleAddFreeTyped} style={styles.resultRow} accessibilityRole="button">
-                <AppText variant="label" color={colors.primary}>
-                  + Add "{trimmedQuery}"
-                </AppText>
-              </Pressable>
-            </View>
-          ) : null}
-
-          <View style={styles.addFormButtons}>
-            <Pressable onPress={resetAddFlow} accessibilityRole="button">
-              <AppText variant="label" color={colors.textSecondary}>
-                Cancel
-              </AppText>
-            </Pressable>
-          </View>
-        </View>
-      ) : (
-        <Pressable onPress={() => setAdding(true)} accessibilityRole="button">
-          <AppText variant="label" color={colors.primary}>
-            + Add treatment
-          </AppText>
-        </Pressable>
-      )}
+      <TreatmentSearchAdd
+        existingTreatments={treatments.map((t) => ({ id: t.id, name: t.name }))}
+        onSelectMatch={onSelectMatch}
+        onAddFreeTyped={onAddFreeTyped}
+        describeSavedMatch={describeSavedMatch}
+      />
     </View>
   );
 }
@@ -386,34 +226,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     marginTop: spacing.xs,
-  },
-  addForm: {
-    gap: spacing.sm,
-  },
-  addFormButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.lg,
-  },
-  input: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.textPrimary,
-  },
-  results: {
-    gap: spacing.xs,
-  },
-  resultRow: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  resultTextColumn: {
-    flex: 1,
   },
 });
