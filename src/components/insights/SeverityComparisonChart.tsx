@@ -65,6 +65,11 @@ export function SeverityComparisonChart({ sites, colorById }: SeverityComparison
   const router = useRouter();
   const [containerWidth, setContainerWidth] = useState(0);
   const shotRef = useRef<ViewShotRef>(null);
+  // Toggled true only for the instant the export button captures the chart — reveals
+  // exportHeader (title, date range, and a static site/compare-series key) inside the ViewShot so
+  // a saved/shared image is self-contained, without permanently duplicating the SiteToggleLegend
+  // and range controls already shown live above the chart.
+  const [isExporting, setIsExporting] = useState(false);
 
   const chartableSites = useMemo(() => sites.filter((s) => colorById[s.id]), [sites, colorById]);
   const [requestedActiveSiteIds, setRequestedActiveSiteIds] = useActiveSiteSelection(chartableSites);
@@ -259,7 +264,14 @@ export function SeverityComparisonChart({ sites, colorById }: SeverityComparison
     );
   };
 
-  const exportButton = <ChartExportButton shotRef={shotRef} chartTitle="Severity comparison" />;
+  const exportButton = (
+    <ChartExportButton
+      shotRef={shotRef}
+      chartTitle="Severity comparison"
+      beforeCapture={() => setIsExporting(true)}
+      afterCapture={() => setIsExporting(false)}
+    />
+  );
 
   const controls = (
     <>
@@ -307,15 +319,45 @@ export function SeverityComparisonChart({ sites, colorById }: SeverityComparison
     );
   }
 
+  const dateRangeLabel = `${formatBucketDate(bucketDates[0], range.granularity)} – ${formatBucketDate(bucketDates[bucketDates.length - 1], range.granularity)}`;
+
   const summary =
     selection.kind === 'stress'
       ? `Severity 0 to 5 vs stress 0 to 5, ${formatBucketDate(bucketDates[0], range.granularity)} to ${formatBucketDate(bucketDates[bucketDates.length - 1], range.granularity)}.`
       : `Severity 0 to 5, ${formatBucketDate(bucketDates[0], range.granularity)} to ${formatBucketDate(bucketDates[bucketDates.length - 1], range.granularity)}. ${compareLabel} contact days marked below the axis.`;
 
+  // Static key for the exported/shared image only (see isExporting) — each active site's line
+  // color + name, plus the one comparison series currently plotted (stress, or the selected
+  // trigger/medication's contact-day color).
+  const exportLegendEntries: { key: string; color: string; label: string }[] = [
+    ...activeSiteIds.map((id) => ({ key: id, color: colorById[id], label: sitesById.get(id) ?? 'Site' })),
+    { key: 'compare', color: COMPARE_COLOR, label: selection.kind === 'stress' ? 'Stress' : compareLabel },
+  ];
+
   return (
     <ChartCard title="Severity comparison" headerRight={exportButton}>
       {controls}
       <ViewShot ref={shotRef} style={styles.shotArea}>
+        {isExporting ? (
+          <View style={styles.exportHeader}>
+            <AppText variant="title" color={colors.textPrimary}>
+              Severity comparison
+            </AppText>
+            <AppText variant="caption" color={colors.textSecondary}>
+              {dateRangeLabel}
+            </AppText>
+            <View style={styles.exportLegend}>
+              {exportLegendEntries.map((entry) => (
+                <View key={entry.key} style={styles.exportLegendItem}>
+                  <View style={[styles.exportLegendSwatch, { backgroundColor: entry.color }]} />
+                  <AppText variant="caption" color={colors.textPrimary}>
+                    {entry.label}
+                  </AppText>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
         <View style={styles.chartMargin}>
           <View onLayout={handleLayout} accessible accessibilityLabel={summary}>
             {containerWidth > 0 ? (
@@ -429,6 +471,26 @@ const styles = StyleSheet.create({
   },
   shotArea: {
     backgroundColor: colors.surfaceAlt,
+  },
+  exportHeader: {
+    gap: spacing.xs,
+    paddingHorizontal: CHART_SIDE_MARGIN,
+    paddingTop: spacing.sm,
+  },
+  exportLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  exportLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  exportLegendSwatch: {
+    width: 10,
+    height: 10,
+    borderRadius: radius.sm,
   },
   emptyNote: {
     paddingVertical: spacing.md,
