@@ -8,6 +8,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { CadenceUnit, DeliveryMethod, TreatmentType, WindowUnit } from '../../content/treatmentLibrary';
 import { todayISO, type ObservationWindow } from './calendarMath';
+import type { CustomChartConfig } from './manageCustomCharts';
 
 /** A tidy data point most chart libraries can consume directly. */
 export interface SeriesPoint {
@@ -77,6 +78,26 @@ export async function getStressSeries(
     [userId, from, to]
   );
   return rows.map((r) => ({ date: r.date, series: 'stress', value: r.value }));
+}
+
+/**
+ * Mood over the same window — same shape/role as getStressSeries, just the
+ * daily_logs.mood column instead of stress.
+ */
+export async function getMoodSeries(
+  db: SQLiteDatabase,
+  userId: string,
+  from: string,
+  to: string
+): Promise<SeriesPoint[]> {
+  const rows = await db.getAllAsync<{ date: string; value: number | null }>(
+    `SELECT log_date AS date, mood AS value
+       FROM daily_logs
+      WHERE user_id = ? AND log_date BETWEEN ? AND ? AND deleted_at IS NULL
+      ORDER BY log_date ASC`,
+    [userId, from, to]
+  );
+  return rows.map((r) => ({ date: r.date, series: 'mood', value: r.value }));
 }
 
 /**
@@ -203,10 +224,38 @@ export async function getRecapSeries(
 }
 
 /**
- * Days a given trigger was contacted in the window — render these as markers/
- * shaded bands behind the severity lines to spot correlations. Same idea works
- * for medications (join log_medications) or an experiment's date range.
+ * Days a given trigger or medication was logged in the window — render these
+ * as markers/shaded bands behind the severity lines to spot correlations.
+ * Anchored on daily_logs with a LEFT JOIN (deleted_at IS NULL in the ON
+ * clause, not WHERE) so the join stays safe to extend to the unmatched/null
+ * case later, same convention as getSiteSeries — putting deleted_at in WHERE
+ * would silently degrade this to an inner join (see getMonthWorstSeverity).
  */
+export async function getEventDays(
+  db: SQLiteDatabase,
+  userId: string,
+  kind: 'trigger' | 'medication',
+  id: string,
+  from: string,
+  to: string
+): Promise<string[]> {
+  const table = kind === 'trigger' ? 'log_triggers' : 'log_medications';
+  const column = kind === 'trigger' ? 'trigger_id' : 'medication_id';
+  const rows = await db.getAllAsync<{ date: string }>(
+    `SELECT d.log_date AS date
+       FROM daily_logs d
+       LEFT JOIN ${table} le ON le.log_id = d.id AND le.${column} = ? AND le.deleted_at IS NULL
+      WHERE d.user_id = ?
+        AND d.log_date BETWEEN ? AND ?
+        AND d.deleted_at IS NULL
+        AND le.id IS NOT NULL
+      ORDER BY d.log_date ASC`,
+    [id, userId, from, to]
+  );
+  return rows.map((r) => r.date);
+}
+
+/** Thin wrapper over getEventDays — kept for SeverityComparisonChart.tsx/exportData.ts. */
 export async function getTriggerDays(
   db: SQLiteDatabase,
   userId: string,
@@ -214,26 +263,10 @@ export async function getTriggerDays(
   from: string,
   to: string
 ): Promise<string[]> {
-  const rows = await db.getAllAsync<{ log_date: string }>(
-    `SELECT d.log_date
-       FROM log_triggers lt
-       JOIN daily_logs d ON d.id = lt.log_id
-      WHERE d.user_id = ?
-        AND lt.trigger_id = ?
-        AND d.log_date BETWEEN ? AND ?
-        AND d.deleted_at IS NULL
-        AND lt.deleted_at IS NULL
-      ORDER BY d.log_date ASC`,
-    [userId, triggerId, from, to]
-  );
-  return rows.map((r) => r.log_date);
+  return getEventDays(db, userId, 'trigger', triggerId, from, to);
 }
 
-/**
- * Days a given medication was taken in the window — same rug/marker-row role as getTriggerDays,
- * just joined through log_medications/medications instead of log_triggers/triggers. Medication
- * use is binary per day (a log_medications row = taken that day), never a 0-5 severity value.
- */
+/** Thin wrapper over getEventDays — kept for SeverityComparisonChart.tsx/exportData.ts. */
 export async function getMedicationDays(
   db: SQLiteDatabase,
   userId: string,
@@ -241,19 +274,7 @@ export async function getMedicationDays(
   from: string,
   to: string
 ): Promise<string[]> {
-  const rows = await db.getAllAsync<{ log_date: string }>(
-    `SELECT d.log_date
-       FROM log_medications lm
-       JOIN daily_logs d ON d.id = lm.log_id
-      WHERE d.user_id = ?
-        AND lm.medication_id = ?
-        AND d.log_date BETWEEN ? AND ?
-        AND d.deleted_at IS NULL
-        AND lm.deleted_at IS NULL
-      ORDER BY d.log_date ASC`,
-    [userId, medicationId, from, to]
-  );
-  return rows.map((r) => r.log_date);
+  return getEventDays(db, userId, 'medication', medicationId, from, to);
 }
 
 /**
@@ -824,4 +845,39 @@ export async function getMedicationHistory(
     lastUsed: r.last_used,
     addedAt: r.created_at.slice(0, 10),
   }));
+}
+
+export interface ResolvedGranularity {
+  granularity: 'daily' | 'weekly' | 'monthly';
+  /** True iff hasEventSeries is what decided this — the UI's cue to show the
+   *  granularity control disabled and explain why, rather than a silent override. */
+  forced: boolean;
+}
+
+/**
+ * A multi-day symptom lag is invisible in a weekly/monthly bucket, which is
+ * the main thing an overlay chart with trigger/medication markers exists to
+ * let someone look for — so any enabled event series pins granularity to
+ * daily, overriding whatever was requested. Otherwise an explicit (non-auto)
+ * request wins outright; 'auto' resolves from range.
+ */
+export function resolveGranularity(
+  range: CustomChartConfig['range'],
+  requested: CustomChartConfig['granularity'],
+  hasEventSeries: boolean
+): ResolvedGranularity {
+  if (hasEventSeries) {
+    return { granularity: 'daily', forced: true };
+  }
+  if (requested !== 'auto') {
+    return { granularity: requested, forced: false };
+  }
+  const autoByRange: Record<CustomChartConfig['range'], ResolvedGranularity['granularity']> = {
+    '30d': 'daily',
+    '90d': 'daily',
+    '6mo': 'weekly',
+    '1yr': 'monthly',
+    all: 'monthly',
+  };
+  return { granularity: autoByRange[range], forced: false };
 }

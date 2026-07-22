@@ -34,6 +34,21 @@ CREATE TABLE IF NOT EXISTS sites (
   deleted_at  TEXT
 );
 
+-- A user-created overlay chart for the Insights tab (site severity lines +
+-- stress/mood + trigger/medication event lanes). config is JSON — see
+-- CustomChartConfig in manageCustomCharts.ts for the shape.
+CREATE TABLE IF NOT EXISTS custom_charts (
+  id                 TEXT PRIMARY KEY,
+  user_id            TEXT,
+  title              TEXT NOT NULL,
+  config             TEXT NOT NULL,
+  sort_order         INTEGER NOT NULL DEFAULT 0,
+  include_in_export  INTEGER NOT NULL DEFAULT 0,
+  created_at         TEXT NOT NULL,
+  updated_at         TEXT NOT NULL,
+  deleted_at         TEXT
+);
+
 -- The treatments a user tracks. category powers your "manage treatments" feature.
 CREATE TABLE IF NOT EXISTS medications (
   id              TEXT PRIMARY KEY,

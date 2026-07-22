@@ -113,6 +113,12 @@ export function ScoreOverTime({
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [gapMode, setGapMode] = useState<GapMode>('break');
   const shotRef = useRef<ViewShotRef>(null);
+  // Toggled true only for the instant the export button captures the chart — reveals exportHeader
+  // (title, score range, and the actual date period) inside the ViewShot so a saved/shared image
+  // is self-explanatory on its own, without permanently duplicating the title/attribution the
+  // ChartCard chrome already shows on-screen. Same pattern as SeverityOverTimeChart/
+  // SeverityComparisonChart's export headers.
+  const [isExporting, setIsExporting] = useState(false);
 
   const points = useMemo(() => toScoreChartPoints(data, band ?? (() => null)), [data, band]);
   const selectedPoint = selectedIndex != null ? (points[selectedIndex] ?? null) : null;
@@ -188,7 +194,14 @@ export function ScoreOverTime({
     </>
   );
 
-  const exportButton = <ChartExportButton shotRef={shotRef} chartTitle={title} />;
+  const exportButton = (
+    <ChartExportButton
+      shotRef={shotRef}
+      chartTitle={title}
+      beforeCapture={() => setIsExporting(true)}
+      afterCapture={() => setIsExporting(false)}
+    />
+  );
   const gapModeControl = <GapModeControl value={gapMode} onChange={setGapMode} />;
 
   if (points.length < 2) {
@@ -219,6 +232,8 @@ export function ScoreOverTime({
   // on-screen caption.
   const summary = `Weekly ${title} scores from ${shortDateLabel(points[0].weekStart)} to ${shortDateLabel(points[points.length - 1].weekStart)}, ranging from ${formatScoreWithBand(lowest.score, lowest.band)} to ${formatScoreWithBand(highest.score, highest.band)}.`;
 
+  const dateRangeLabel = `${shortDateLabel(points[0].weekStart)} – ${shortDateLabel(points[points.length - 1].weekStart)}`;
+
   const chart = (
       // ViewShot wraps just the plot (not the gap-mode control above it) so a saved picture is
       // the chart itself, not the surrounding controls. chartMargin is a separate OUTER wrapper
@@ -226,6 +241,16 @@ export function ScoreOverTime({
       // margin — the margin has to come off the width budget same as everything else, and
       // nesting it this way gets that for free instead of needing another manual subtraction.
       <ViewShot ref={shotRef} style={[styles.chartMargin, printMode ? styles.printBackdrop : null]}>
+        {isExporting ? (
+          <View style={styles.exportHeader}>
+            <AppText variant="title" color={colors.textPrimary}>
+              {title}
+            </AppText>
+            <AppText variant="caption" color={colors.textSecondary}>
+              Score 0–{maxValue} · {dateRangeLabel}
+            </AppText>
+          </View>
+        ) : null}
         <View onLayout={handleLayout} accessible accessibilityLabel={summary}>
           {containerWidth > 0 ? (
             <View style={styles.chartArea} {...panResponder.panHandlers}>
@@ -352,6 +377,10 @@ const styles = StyleSheet.create({
   printWrap: {
     backgroundColor: colors.surface,
     padding: spacing.sm,
+  },
+  exportHeader: {
+    gap: spacing.xs,
+    paddingTop: spacing.sm,
   },
   emptyNote: {
     paddingVertical: spacing.md,

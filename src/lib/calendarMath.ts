@@ -86,6 +86,13 @@ export function formatLongDate(iso: string): string {
   return `${MONTH_LONG_NAME_FORMATTER.format(date)} ${ordinal(day)}`;
 }
 
+/** 'YYYY-MM-DD' -> "1 Apr" — compact, for chart axis ticks where a full date reads too wide. */
+export function formatShortDate(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return `${day} ${MONTH_NAME_FORMATTER.format(date)}`;
+}
+
 /** Whole days between two 'YYYY-MM-DD' strings (positive if `toISO` is later). */
 export function daysBetween(fromISO: string, toISO: string): number {
   return Math.round((parseISODate(toISO).getTime() - parseISODate(fromISO).getTime()) / 86400000);

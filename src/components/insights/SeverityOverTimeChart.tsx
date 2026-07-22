@@ -5,9 +5,14 @@ import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import { colors, radius, spacing } from '../../app/theme';
 import { useActiveUserId } from '../../hooks/useActiveUserId';
 import { daysBetween, todayISO } from '../../lib/calendarMath';
-import { autoGranularity, type Bucket } from '../../lib/chartSeries';
+import { autoGranularity, hasEnoughBucketData, type Bucket } from '../../lib/chartSeries';
 import { AppText } from '../AppText';
-import { bucketMonthLabels, bucketsToLineSegments, formatBucketDate } from './bucketChartLayout';
+import {
+  bucketsToLineSegments,
+  evenlySpacedBucketLabels,
+  formatBucketDate,
+  isolatedSegmentIndices,
+} from './bucketChartLayout';
 import { axisTextStyle, CHART_INITIAL_SPACING, plotTop, Y_AXIS_LABEL_WIDTH } from './chartTheme';
 import { ChartCard } from './ChartCard';
 import { ChartExportButton } from './ChartExportButton';
@@ -28,6 +33,7 @@ const MIN_PLOT_WIDTH = 100;
 const TICK_LABEL_HEIGHT = 20;
 const LABELS_EXTRA_HEIGHT = 40;
 const CHART_SIDE_MARGIN = spacing.sm;
+const ISOLATED_DOT_SIZE = 8;
 const MAX_VALUE = 5;
 
 interface SeverityOverTimeChartProps {
@@ -59,6 +65,11 @@ export function SeverityOverTimeChart({ sites, colorById, rangePresetOverride, p
   const activeUserId = useActiveUserId();
   const [containerWidth, setContainerWidth] = useState(0);
   const shotRef = useRef<ViewShotRef>(null);
+  // Toggled true only for the instant the export button captures the chart — reveals exportHeader
+  // (a "Severity (0–5)" axis label, the date range, and a static site-color key) inside the
+  // ViewShot so a saved/shared image is self-explanatory without the on-screen tooltip open,
+  // without permanently duplicating the SiteToggleLegend already shown live below the chart.
+  const [isExporting, setIsExporting] = useState(false);
 
   const chartableSites = useMemo(() => sites.filter((s) => colorById[s.id]), [sites, colorById]);
   const [requestedActiveSiteIds, setRequestedActiveSiteIds] = useActiveSiteSelection(chartableSites);
@@ -92,9 +103,9 @@ export function SeverityOverTimeChart({ sites, colorById, rangePresetOverride, p
   const spacingPx = bucketDates.length > 1 ? (plotWidth - CHART_INITIAL_SPACING) / (bucketDates.length - 1) : 0;
 
   const labels = useMemo(
-    () => bucketMonthLabels(bucketDates, spacingPx),
+    () => evenlySpacedBucketLabels(bucketDates),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bucketDates.join(','), spacingPx]
+    [bucketDates.join(',')]
   );
 
   const handleLayout = (e: LayoutChangeEvent) => setContainerWidth(e.nativeEvent.layout.width);
@@ -113,6 +124,20 @@ export function SeverityOverTimeChart({ sites, colorById, rangePresetOverride, p
   const segmentsAt = (i: number) => {
     const id = siteAt(i);
     return id ? bucketsToLineSegments(displayBySite[id] ?? []) : undefined;
+  };
+  // A gifted-charts line segment needs 2 points to draw anything, so a single logged day
+  // surrounded by gaps otherwise renders nothing (hideDataPoints is set globally below) — these
+  // are rendered as their own small dot overlay, positioned with the same formula
+  // SeverityComparisonChart's rug marks already validated.
+  const isolatedDotsAt = (i: number) => {
+    const id = siteAt(i);
+    if (!id) return [];
+    const buckets = displayBySite[id] ?? [];
+    return isolatedSegmentIndices(bucketsToLineSegments(buckets)).map((index) => ({
+      index,
+      value: buckets[index].value as number,
+      color: colorById[id],
+    }));
   };
 
   const renderTooltip = (pointerIndex: number) => {
@@ -139,7 +164,14 @@ export function SeverityOverTimeChart({ sites, colorById, rangePresetOverride, p
     );
   };
 
-  const exportButton = <ChartExportButton shotRef={shotRef} chartTitle="Symptom severity over time" />;
+  const exportButton = (
+    <ChartExportButton
+      shotRef={shotRef}
+      chartTitle="Symptom severity over time"
+      beforeCapture={() => setIsExporting(true)}
+      afterCapture={() => setIsExporting(false)}
+    />
+  );
 
   const controls = (
     <>
@@ -181,22 +213,45 @@ export function SeverityOverTimeChart({ sites, colorById, rangePresetOverride, p
     );
   }
 
-  const hasAnyValue = activeSiteIds.some((id) => (displayBySite[id] ?? []).some((b) => b.value !== null));
+  const hasEnoughData = hasEnoughBucketData(activeSiteIds.map((id) => displayBySite[id] ?? []));
 
   const siteNames = activeSiteIds.map((id) => sitesById.get(id)).filter(Boolean).join(', ');
   // Not shown as visible text — carried as the chart's accessibility label, same standard as
   // CalendarDay's describeState()/ScoreOverTime's summary.
-  const summary = hasAnyValue
+  const summary = hasEnoughData
     ? `Severity 0 to 5 for ${siteNames}, ${formatBucketDate(bucketDates[0], granularity)} to ${formatBucketDate(bucketDates[bucketDates.length - 1], granularity)}.`
     : undefined;
 
+  const dateRangeLabel = `${formatBucketDate(bucketDates[0], granularity)} – ${formatBucketDate(bucketDates[bucketDates.length - 1], granularity)}`;
+
   const chart = (
       <ViewShot ref={shotRef} style={[styles.shotArea, printMode ? styles.printShotArea : null]}>
-        {!hasAnyValue ? (
+        {!hasEnoughData ? (
           <AppText variant="caption" color={colors.textSecondary} style={styles.emptyNote}>
-            Nothing logged in this stretch yet — that's alright.
+            Not enough logged days yet to show this. It'll fill in as you go.
           </AppText>
         ) : (
+          <>
+          {isExporting ? (
+            <View style={styles.exportHeader}>
+              <AppText variant="title" color={colors.textPrimary}>
+                Symptom severity over time
+              </AppText>
+              <AppText variant="caption" color={colors.textSecondary}>
+                Severity (0–5) · {dateRangeLabel}
+              </AppText>
+              <View style={styles.exportLegend}>
+                {activeSiteIds.map((id) => (
+                  <View key={id} style={styles.exportLegendItem}>
+                    <View style={[styles.exportLegendSwatch, { backgroundColor: colorById[id] }]} />
+                    <AppText variant="caption" color={colors.textPrimary}>
+                      {sitesById.get(id) ?? 'Site'}
+                    </AppText>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
           <View style={styles.chartMargin}>
             <View onLayout={handleLayout} accessible accessibilityLabel={summary}>
               {containerWidth > 0 ? (
@@ -217,6 +272,15 @@ export function SeverityOverTimeChart({ sites, colorById, rangePresetOverride, p
                     lineSegments3={segmentsAt(2)}
                     lineSegments4={segmentsAt(3)}
                     lineSegments5={segmentsAt(4)}
+                    // gifted-charts defaults BOTH of these to true, which makes it invent values for
+                    // buckets we deliberately left as `undefined` (no log that day) — linearly
+                    // interpolating THROUGH gaps and even extrapolating BEFORE the first real point /
+                    // AFTER the last one. That's exactly the "not recorded" -> fabricated-data bug
+                    // chartSeries.ts's header warns about, and it silently overrides our own
+                    // lineSegments above (see getLineSegmentsForMissingValues in gifted-charts-core).
+                    // false restores true gaps and makes our lineSegments prop the one actually used.
+                    interpolateMissingValues={false}
+                    extrapolateMissingValues={false}
                     hideDataPoints
                     hideDataPoints2
                     hideDataPoints3
@@ -270,10 +334,24 @@ export function SeverityOverTimeChart({ sites, colorById, rangePresetOverride, p
                       </View>
                     );
                   })}
+                  {activeSiteIds.map((_, i) =>
+                    isolatedDotsAt(i).map((dot) => {
+                      const left = Y_AXIS_LABEL_WIDTH + CHART_INITIAL_SPACING + dot.index * spacingPx - ISOLATED_DOT_SIZE / 2;
+                      const top = plotTop(dot.value, MAX_VALUE, CHART_HEIGHT) - ISOLATED_DOT_SIZE / 2;
+                      return (
+                        <View
+                          key={`${i}-${dot.index}`}
+                          pointerEvents="none"
+                          style={[styles.isolatedDot, { left, top, backgroundColor: dot.color }]}
+                        />
+                      );
+                    })
+                  )}
                 </View>
               ) : null}
             </View>
           </View>
+          </>
         )}
       </ViewShot>
   );
@@ -285,7 +363,7 @@ export function SeverityOverTimeChart({ sites, colorById, rangePresetOverride, p
         {/* On-screen, SiteToggleLegend (in `controls`, stripped out for print) already labels each
             line's color — without it, print mode's colored lines would be unlabeled, so this is
             print mode's own (non-interactive, no toggle switches) equivalent. */}
-        {hasAnyValue ? (
+        {hasEnoughData ? (
           <View style={styles.printLegend}>
             {activeSiteIds.map((id) => (
               <View key={id} style={styles.printLegendRow}>
@@ -304,7 +382,7 @@ export function SeverityOverTimeChart({ sites, colorById, rangePresetOverride, p
   return (
     <ChartCard title="Symptom severity over time" headerRight={exportButton}>
       {chart}
-      {hasAnyValue ? (
+      {hasEnoughData ? (
         <AppText variant="caption" color={colors.textSecondary}>
           Touch or drag the chart to see each site's score for a day.
         </AppText>
@@ -327,6 +405,26 @@ const styles = StyleSheet.create({
   },
   printShotArea: {
     backgroundColor: colors.surface,
+  },
+  exportHeader: {
+    gap: spacing.xs,
+    paddingHorizontal: CHART_SIDE_MARGIN,
+    paddingTop: spacing.sm,
+  },
+  exportLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  exportLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  exportLegendSwatch: {
+    width: 10,
+    height: 10,
+    borderRadius: radius.sm,
   },
   printWrap: {
     backgroundColor: colors.surface,
@@ -363,6 +461,12 @@ const styles = StyleSheet.create({
     left: 0,
     width: Y_AXIS_LABEL_WIDTH - 4,
     alignItems: 'flex-end',
+  },
+  isolatedDot: {
+    position: 'absolute',
+    width: ISOLATED_DOT_SIZE,
+    height: ISOLATED_DOT_SIZE,
+    borderRadius: ISOLATED_DOT_SIZE / 2,
   },
   tooltip: {
     backgroundColor: colors.surface,

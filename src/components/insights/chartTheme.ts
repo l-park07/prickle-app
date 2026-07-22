@@ -9,7 +9,7 @@
 // only exposes tokens, not gifted-charts-specific config objects, so nothing
 // here is a guess at an API surface that doesn't exist yet.
 // -----------------------------------------------------------------------------
-import { colors, clearColor, fontFamily, observationBands, severityScale, sitePalette, spacing, typography } from '../../app/theme';
+import { colors, clearColor, eventAccentPalette, fontFamily, observationBands, severityScale, sitePalette, spacing, typography } from '../../app/theme';
 
 /**
  * Severity line/point colors, keyed 1-5 — a direct re-export of severityScale.
@@ -65,6 +65,21 @@ export function assignSiteColors(sites: { id: string }[]): Record<string, string
   const map: Record<string, string> = {};
   sites.slice(0, sitePalette.length).forEach((site, index) => {
     map[site.id] = sitePalette[index];
+  });
+  return map;
+}
+
+/**
+ * Deterministic per-event-series accent color: cycles eventAccentPalette by a series' position in
+ * the given id list. Unlike assignSiteColors, this cycles (% length) rather than truncating —
+ * EventLanes rows aren't capped by a gifted-charts data-slot limit, and every row always carries
+ * its own visible label (row + legend), so identity past the palette's 2 entries still isn't
+ * color-alone the way a site line is.
+ */
+export function assignEventAccentColors(seriesIds: string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  seriesIds.forEach((id, index) => {
+    map[id] = eventAccentPalette[index % eventAccentPalette.length];
   });
   return map;
 }

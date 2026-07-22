@@ -55,6 +55,14 @@ export const palette = {
   marigold: '#eda100',
   aqua: '#1baf7a',
   tangerine: '#eb6834',
+
+  // Event-accent hues (see eventAccentPalette below) — warm/clay family for trigger and
+  // medication overlay marks, chosen to clear the dataviz skill's validate_palette.js checks
+  // (chroma floor, CVD/normal-vision separation, incl. against severityScale's softOchre, its
+  // nearest existing neighbor) at surface `pale`. Do not hand-tune without re-running the
+  // validator: node scripts/validate_palette.js "<hex,hex>" --mode light --surface "#fbe7e2" --pairs all
+  rust: '#bb6f30',
+  umber: '#803f10',
 } as const;
 
 // 2) SEMANTIC COLORS — what things ARE, not what color they happen to be.
@@ -141,6 +149,14 @@ export const sitePalette: string[] = [
   palette.tangerine,
 ];
 
+// Trigger/medication event-lane and background-band accent colors (Insights overlay charts).
+// Deliberately its own warm/clay family, distinct from severityScale (a green/olive-to-terracotta
+// severity ramp) and sitePalette (saturated site-identity hues) — reusing either would make an
+// event mark misread as a severity value or a site line. See assignEventAccentColors in
+// chartTheme.ts for how a series id maps to one of these (cycles past 2 — every event mark is
+// always paired with a visible label, so identity is never color-alone the way a site line is).
+export const eventAccentPalette: string[] = [palette.rust, palette.umber];
+
 // 4) TYPOGRAPHY — this is where Open Sans lives, so <AppText> stops hardcoding it.
 //    Every key here must have a matching entry in `fontAssets` below, or it'll
 //    silently fall back to the system font when unregistered.
@@ -185,6 +201,7 @@ export const theme = {
   notScoredBorder,
   observationBands,
   sitePalette,
+  eventAccentPalette,
   fontFamily,
   fontAssets,
   typography,

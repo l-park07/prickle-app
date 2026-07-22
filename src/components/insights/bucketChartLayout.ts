@@ -10,18 +10,8 @@
 // scoreChartLayout's day-gap math.
 // -----------------------------------------------------------------------------
 import type { LineSegment } from 'react-native-gifted-charts';
-import { formatFriendlyDate, formatLongDate, formatMonthYear } from '../../lib/calendarMath';
+import { formatFriendlyDate, formatLongDate, formatMonthYear, formatShortDate } from '../../lib/calendarMath';
 import type { Bucket, Granularity } from '../../lib/chartSeries';
-
-const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** A bucket date's calendar-month key ('YYYY-MM') — used to decide which buckets get an x-axis month label. */
-export const bucketMonthKey = (iso: string) => iso.slice(0, 7);
-
-/** Short "Mon 'YY" month label for an x-axis tick — reads horizontally without rotation even across a multi-year range. */
-export function bucketMonthLabel(iso: string): string {
-  return `${MONTH_ABBR[Number(iso.slice(5, 7)) - 1]} '${iso.slice(2, 4)}`;
-}
 
 /** Bucket date -> a worded label matching that bucket's own granularity (a week bucket's date is
  *  its Monday start, a month bucket's is the 1st — neither reads well as a bare day name). Shared
@@ -36,26 +26,33 @@ export function formatBucketDate(date: string, granularity: Granularity): string
 }
 
 /**
- * x-axis labels for a bucketed series: the month label on the first bucket of each new month,
- * blank otherwise — additionally suppressed if it would land within `minLabelPx` of the last label
- * actually shown, so a long history at fine granularity doesn't cram overlapping "Mon 'YY" text
- * together (each label reads roughly that wide regardless of how tight the buckets are packed).
- * `spacingPx` defaults to Infinity (never suppress) for callers that haven't measured their layout.
+ * At most `maxLabels` x-axis labels, evenly spaced by INDEX (never one per bucket — that's an
+ * unreadable smear at fine/daily granularity), always including the first and last bucket. Uses
+ * formatShortDate rather than formatBucketDate: axis space is tight regardless of granularity, so
+ * every tick gets the same compact "1 Apr" form instead of a scheme tied to calendar-month starts.
  */
-export function bucketMonthLabels(bucketDates: string[], spacingPx = Infinity, minLabelPx = 44): string[] {
-  const labels: string[] = [];
-  let lastShownIndex = -Infinity;
-  bucketDates.forEach((date, i) => {
-    const isMonthStart = i === 0 || bucketMonthKey(date) !== bucketMonthKey(bucketDates[i - 1]);
-    const roomSinceLast = (i - lastShownIndex) * spacingPx;
-    if (isMonthStart && roomSinceLast >= minLabelPx) {
-      labels.push(bucketMonthLabel(date));
-      lastShownIndex = i;
-    } else {
-      labels.push('');
-    }
+export function evenlySpacedBucketLabels(bucketDates: string[], maxLabels = 5): string[] {
+  const labels = bucketDates.map(() => '');
+  const count = Math.min(maxLabels, bucketDates.length);
+  if (count === 0) return labels;
+  if (count === 1) {
+    labels[0] = formatShortDate(bucketDates[0]);
+    return labels;
+  }
+  const shown = new Set<number>();
+  for (let k = 0; k < count; k++) {
+    shown.add(Math.round((k * (bucketDates.length - 1)) / (count - 1)));
+  }
+  shown.forEach((index) => {
+    labels[index] = formatShortDate(bucketDates[index]);
   });
   return labels;
+}
+
+/** Indices of single-bucket runs from bucketsToLineSegments' output — a gifted-charts line segment
+ *  needs 2 points to draw anything, so these are the isolated logged days that need their own dot. */
+export function isolatedSegmentIndices(segments: LineSegment[]): number[] {
+  return segments.filter((s) => s.startIndex === s.endIndex).map((s) => s.startIndex);
 }
 
 /**

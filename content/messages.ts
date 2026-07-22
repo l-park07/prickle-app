@@ -62,16 +62,16 @@ export const MESSAGES: PrickleMessage[] = [
 
   // ------------------------------------------------------------------------ facts
   // Descriptive only. No dosing, no treatment recommendations.
-  { id: 'fact-001', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-002', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-003', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-004', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-005', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-006', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-007', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-008', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-009', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-010', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-011', kind: 'fact', text: '*', source: 'TODO' },
-  { id: 'fact-012', kind: 'fact', text: '*', source: 'TODO' },
+  { id: 'fact-001', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-002', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-003', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-004', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-005', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-006', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-007', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-008', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-009', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-010', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-011', kind: 'fact', text: '*', source: '' },
+  { id: 'fact-012', kind: 'fact', text: '*', source: '' },
 ];

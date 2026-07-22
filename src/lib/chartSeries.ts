@@ -232,6 +232,18 @@ export function recordedDensity(buckets: Bucket[]): number {
 }
 
 /**
+ * True iff at least one of the given series has `min` or more buckets with a real value. Below
+ * this, a chart has nothing meaningful to connect into a line — render an empty state instead of
+ * axes/plot furniture around near-nothing. A single isolated point still counts toward its own
+ * series' tally even though it draws as a lone dot, not a line (see isolatedSegmentIndices in
+ * bucketChartLayout.ts) — this is a coarser "is there anything worth showing at all" gate, not a
+ * per-run check.
+ */
+export function hasEnoughBucketData(seriesList: Bucket[][], min = 2): boolean {
+  return seriesList.some((series) => series.filter((b) => b.value !== null).length >= min);
+}
+
+/**
  * Sparse data reads badly as a broken line — too many holes. Below the threshold,
  * suggest the closed-gap ('omit') view. This is only a suggestion; always let the
  * user override via the gap-mode control. Jason is the profile that trips this.
