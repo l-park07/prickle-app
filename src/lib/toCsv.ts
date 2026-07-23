@@ -64,22 +64,3 @@ export function toCsv<Row extends Record<string, unknown>>(
 
   return (bom ? '\uFEFF' : '') + [header, ...lines].join(eol);
 }
-
-// --- example usage (delete once wired up) ------------------------------------
-// In the export handler (expo-file-system + expo-sharing), on-device, no network:
-//
-//   import * as FileSystem from 'expo-file-system';
-//   import * as Sharing from 'expo-sharing';
-//
-//   const wideRows = pivotToWide(/* … from/to for the active user … */);
-//   const columns: CsvColumn<typeof wideRows[number]>[] = [
-//     { key: 'date',   header: 'Date' },
-//     { key: 'armL',   header: 'Left arm',  format: (v) => v == null ? '' : v === 0 ? 'Clear' : String(v) },
-//     { key: 'stress', header: 'Stress' },
-//     { key: 'pollen', header: 'Pollen',    format: (v) => (v ? '1' : '0') },
-//     // …one column per site / trigger / medication, in a stable order…
-//   ];
-//   const csv = toCsv(wideRows, columns);
-//   const uri = FileSystem.documentDirectory + `prickle-export-${from}_to_${to}.csv`;
-//   await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-//   await Sharing.shareAsync(uri, { mimeType: 'text/csv', UTI: 'public.comma-separated-values-text' });

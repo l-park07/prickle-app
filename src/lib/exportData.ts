@@ -16,6 +16,7 @@ import {
   getActiveSites,
   getActiveTriggers,
   getMedicationDays,
+  getMoodSeries,
   getSiteSeries,
   getStressSeries,
   getTriggerDays,
@@ -61,35 +62,52 @@ export interface ExportCsvResult {
   filename: string;
 }
 
+export interface BuildExportCsvOptions {
+  /** Scopes the trigger/medication columns to just these ids (e.g. the union of what a set of
+   *  included custom charts reference) instead of every active trigger/medication. Sites stay
+   *  unconditional either way — Severity-over-time is always included, so full site coverage is
+   *  always wanted. */
+  triggerIds?: string[];
+  medicationIds?: string[];
+}
+
 /**
- * Builds the full CSV for one user's window: Date, one column per site, Stress, then one column
- * per active trigger and per active medication, in that stable order.
+ * Builds the full CSV for one user's window: Date, one column per site, Stress, Mood, then one
+ * column per (optionally scoped, see BuildExportCsvOptions) trigger and medication, in that
+ * stable order.
  */
 export async function buildExportCsv(
   db: SQLiteDatabase,
   userId: string,
   from: string,
-  to: string
+  to: string,
+  options?: BuildExportCsvOptions
 ): Promise<ExportCsvResult> {
-  const [sites, triggers, medications] = await Promise.all([
+  const [sites, allTriggers, allMedications] = await Promise.all([
     getActiveSites(db, userId),
     getActiveTriggers(db, userId),
     getActiveMedications(db, userId),
   ]);
+  const triggers = options?.triggerIds ? allTriggers.filter((t) => options.triggerIds!.includes(t.id)) : allTriggers;
+  const medications = options?.medicationIds
+    ? allMedications.filter((m) => options.medicationIds!.includes(m.id))
+    : allMedications;
 
-  const [siteSeries, stressSeries, triggerPoints, medicationPoints] = await Promise.all([
+  const [siteSeries, stressSeries, moodSeries, triggerPoints, medicationPoints] = await Promise.all([
     getSiteSeries(db, userId, sites.map((s) => s.id), from, to),
     getStressSeries(db, userId, from, to),
+    getMoodSeries(db, userId, from, to),
     presencePoints(triggers, TRIGGER_PREFIX, (id) => getTriggerDays(db, userId, id, from, to)),
     presencePoints(medications, MEDICATION_PREFIX, (id) => getMedicationDays(db, userId, id, from, to)),
   ]);
 
-  const wideRows = pivotToWide([...siteSeries, ...stressSeries, ...triggerPoints, ...medicationPoints]);
+  const wideRows = pivotToWide([...siteSeries, ...stressSeries, ...moodSeries, ...triggerPoints, ...medicationPoints]);
 
   const columns: CsvColumn<WideRow>[] = [
     { key: 'date', header: 'Date' },
     ...sites.map((s): CsvColumn<WideRow> => ({ key: s.name, header: s.name, format: formatSiteScore })),
     { key: 'stress', header: 'Stress' },
+    { key: 'mood', header: 'Mood' },
     ...triggers.map(
       (t): CsvColumn<WideRow> => ({ key: TRIGGER_PREFIX + t.name, header: t.name, format: formatPresence })
     ),

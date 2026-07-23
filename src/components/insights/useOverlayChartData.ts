@@ -231,7 +231,19 @@ export function useOverlayChartData(userId: string | null, config: CustomChartCo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bucketsByLineId, config.showGaps, rawLines]);
 
-  const bucketDates = rawLines.length > 0 ? (displayByLineId[rawLines[0].id] ?? []).map((b) => b.date) : [];
+  // A dense date grid to fall back on when there are zero line series (e.g. only an enabled
+  // trigger, no site/stress/mood) — bucketDates otherwise came ONLY from a line series' own
+  // buckets, which silently produced an empty axis (and so no lanes/bands at all) for an
+  // event-only chart even though there was real event data to show. 'omit' gap mode has no
+  // defined meaning with nothing to omit against, so this fallback always uses the full range.
+  const emptyDenseBuckets = useMemo(
+    () => (rawLines.length === 0 ? buildBuckets([], { from, to, granularity: bucketGranularity, weekStartsOn: 1 }) : []),
+    [rawLines.length, from, to, bucketGranularity]
+  );
+  const bucketDates =
+    rawLines.length > 0
+      ? (displayByLineId[rawLines[0].id] ?? []).map((b) => b.date)
+      : emptyDenseBuckets.map((b) => b.date);
 
   const eventColorById = useMemo(() => {
     const eventIds = config.series.filter((s) => s.kind === 'trigger' || s.kind === 'medication').map((s) => ('id' in s ? s.id : ''));

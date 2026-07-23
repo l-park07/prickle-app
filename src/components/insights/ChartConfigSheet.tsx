@@ -220,13 +220,13 @@ export function ChartConfigSheet({ target, onClose, onSaved }: ChartConfigSheetP
 
               <View style={styles.actions}>
                 <PrimaryButton label="Save" onPress={handleSave} disabled={!canSave} />
-                <Pressable onPress={onClose} accessibilityRole="button">
+                <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Cancel">
                   <AppText variant="label" color={colors.textSecondary} style={styles.centeredText}>
                     Cancel
                   </AppText>
                 </Pressable>
                 {isEdit ? (
-                  <Pressable onPress={handleDelete} accessibilityRole="button">
+                  <Pressable onPress={handleDelete} accessibilityRole="button" accessibilityLabel="Delete this chart">
                     <AppText variant="label" color={colors.error} style={styles.centeredText}>
                       Delete this chart
                     </AppText>

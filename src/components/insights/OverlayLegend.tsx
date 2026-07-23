@@ -10,8 +10,8 @@ interface LegendSwatchProps {
 
 /** A short line segment for line series (site/stress/mood), a small filled block for event series
  *  (trigger/medication) — the swatch shape carries HOW a series is drawn, not just its color, so
- *  identity doesn't rely on color alone. */
-function LegendSwatch({ shape, color }: LegendSwatchProps) {
+ *  identity doesn't rely on color alone. Exported for OverlayCard's printMode static legend. */
+export function LegendSwatch({ shape, color }: LegendSwatchProps) {
   return <View style={[shape === 'line' ? styles.lineSwatch : styles.blockSwatch, { backgroundColor: color }]} />;
 }
 
@@ -45,11 +45,13 @@ export function OverlayLegend({ rows, onToggle }: OverlayLegendProps) {
               {row.label}
             </AppText>
           </View>
+          {/* No accessibilityLabel here — the row Pressable above already carries the full
+              switch role/label/state; labeling this too made screen readers announce the
+              same row twice. Matches SiteToggleLegend's existing precedent. */}
           <Switch
             value={row.enabled}
             onValueChange={() => onToggle(row.id)}
             trackColor={{ true: row.color, false: colors.border }}
-            accessibilityLabel={row.label}
           />
         </Pressable>
       ))}

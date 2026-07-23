@@ -1,5 +1,5 @@
 import { Ionicons } from '@react-native-vector-icons/ionicons';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import { colors, radius, spacing } from '../../app/theme';
@@ -11,15 +11,22 @@ import {
   updateCustomChart,
   type CustomChart,
   type CustomChartConfig,
+  type CustomChartSeries,
 } from '../../lib/manageCustomCharts';
 import { AppText } from '../AppText';
 import { ChartCard } from './ChartCard';
 import { ChartExportButton } from './ChartExportButton';
+import { LegendSwatch, OverlayLegend } from './OverlayLegend';
 import { OverlayChart } from './OverlayChart';
-import { OverlayLegend } from './OverlayLegend';
 import { useOverlayChartData } from './useOverlayChartData';
 
 const PERSIST_DEBOUNCE_MS = 600;
+
+/** `${kind}:${id-or-kind}` — a stable identity for a series entry independent of its `enabled`
+ *  value, used both to flip a specific entry and to check whether one is still present at all. */
+function seriesIdentity(s: CustomChartSeries): string {
+  return `${s.kind}:${'id' in s ? s.id : s.kind}`;
+}
 
 /** Flips one series' enabled flag by id ('stress'/'mood' stand in for their own id, matching
  *  useOverlayChartData's resolvedSeries/lineSeries convention). */
@@ -40,21 +47,41 @@ function toggleSeriesEnabled(config: CustomChartConfig, targetId: string): Custo
   };
 }
 
+/** The card's caption — the fixed delay-warning line, plus a conditional line when stress/mood is
+ *  enabled. Exported so the export pipeline can reuse the exact same wording for a captured chart
+ *  (a chart in a doctor's hands especially must not lose the "don't read this as cause and effect"
+ *  framing just because it left the app). */
+export function buildOverlayCaption(config: CustomChartConfig): string {
+  const hasMoodOrStress = config.series.some((s) => (s.kind === 'stress' || s.kind === 'mood') && s.enabled);
+  const lines = [
+    "Triggers can take a few days to show up, if they show up at all. Look for what happens in the days after a marker, not just on it.",
+  ];
+  if (hasMoodOrStress) {
+    lines.push('Stress and severity share a 1–5 scale but measure different things.');
+  }
+  return lines.join(' ');
+}
+
 interface OverlayCardProps {
   /** A row from listCustomCharts (manageCustomCharts.ts) — id/title/config/includeInExport. Give
    *  each card a `key={chart.id}` when rendering a list so a different chart gets a fresh instance
    *  rather than this one's local optimistic state leaking across rows. */
   chart: CustomChart;
   /** Opens the card's "..." options menu (Edit/Duplicate/Move/Delete) — the Insights tab owns
-   *  that menu (ChartOptionsSheet.tsx), this card just reports the tap. */
-  onOptionsPress: (chart: CustomChart) => void;
+   *  that menu (ChartOptionsSheet.tsx), this card just reports the tap. Unused/optional in
+   *  printMode, which has no header at all. */
+  onOptionsPress?: (chart: CustomChart) => void;
+  /** Renders just the chart plus a static (non-interactive) legend on a plain backdrop — no
+   *  header, no switches, no footer. Used by ExportSection's off-screen capture rig, same role
+   *  SeverityOverTimeChart's own printMode plays for the PDF export. */
+  printMode?: boolean;
 }
 
 /**
  * The user-created overlay chart card: chart on top, legend-as-controls underneath (see
  * scratch/prickle-insights-comparison-prompts.md section 0).
  */
-export function OverlayCard({ chart, onOptionsPress }: OverlayCardProps) {
+export function OverlayCard({ chart, onOptionsPress, printMode }: OverlayCardProps) {
   const activeUserId = useActiveUserId();
   const shotRef = useRef<ViewShotRef>(null);
 
@@ -63,6 +90,20 @@ export function OverlayCard({ chart, onOptionsPress }: OverlayCardProps) {
   // gets a fresh OverlayCard instance via `key={chart.id}`, not a prop update to this one.
   const [config, setConfig] = useState<CustomChartConfig>(chart.config);
   const [includeInExport, setIncludeInExportLocal] = useState(chart.includeInExport);
+
+  // Reconciles away series entries that no longer exist upstream (e.g. a referenced site/trigger/
+  // medication was soft-deleted while this card stayed mounted across a tab refocus) — without
+  // touching anything still present, so an in-flight optimistic toggle here is never clobbered by
+  // a fresh chart.config prop landing mid-edit. Same reconcile-not-overwrite shape as
+  // useActiveSiteSelection.
+  useEffect(() => {
+    const liveKeys = new Set(chart.config.series.map(seriesIdentity));
+    setConfig((prev) => {
+      const filtered = prev.series.filter((s) => liveKeys.has(seriesIdentity(s)));
+      return filtered.length === prev.series.length ? prev : { ...prev, series: filtered };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart.config]);
 
   const persistConfig = useDebouncedCallback((nextConfig: CustomChartConfig) => {
     updateCustomChart(db, chart.id, { config: nextConfig });
@@ -88,13 +129,44 @@ export function OverlayCard({ chart, onOptionsPress }: OverlayCardProps) {
     config
   );
 
-  const hasMoodOrStress = config.series.some((s) => (s.kind === 'stress' || s.kind === 'mood') && s.enabled);
+  const chartNode = (
+    <ViewShot ref={shotRef} style={styles.shotArea}>
+      <OverlayChart
+        title={chart.title}
+        bucketDates={bucketDates}
+        bucketGranularity={bucketGranularity}
+        lineSeries={lineSeries}
+        eventSeries={eventSeries}
+      />
+    </ViewShot>
+  );
+
+  if (printMode) {
+    const enabledRows = resolvedSeries.filter((row) => row.enabled);
+    return (
+      <View style={styles.printWrap}>
+        {chartNode}
+        {enabledRows.length > 0 ? (
+          <View style={styles.printLegend}>
+            {enabledRows.map((row) => (
+              <View key={row.id} style={styles.printLegendRow}>
+                <LegendSwatch shape={row.shape} color={row.color} />
+                <AppText variant="caption" color={colors.textSecondary}>
+                  {row.label}
+                </AppText>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    );
+  }
 
   const headerRight = (
     <View style={styles.headerActions}>
       <ChartExportButton shotRef={shotRef} chartTitle={chart.title} />
       <Pressable
-        onPress={() => onOptionsPress(chart)}
+        onPress={() => onOptionsPress?.(chart)}
         accessibilityRole="button"
         accessibilityLabel={`More options for ${chart.title}`}
         hitSlop={{ top: spacing.sm, bottom: spacing.sm, left: spacing.sm, right: spacing.sm }}
@@ -107,26 +179,12 @@ export function OverlayCard({ chart, onOptionsPress }: OverlayCardProps) {
 
   return (
     <ChartCard title={chart.title} headerRight={headerRight}>
-      <ViewShot ref={shotRef} style={styles.shotArea}>
-        <OverlayChart
-          title={chart.title}
-          bucketDates={bucketDates}
-          bucketGranularity={bucketGranularity}
-          lineSeries={lineSeries}
-          eventSeries={eventSeries}
-        />
-      </ViewShot>
+      {chartNode}
 
       <View style={styles.captionBlock}>
         <AppText variant="caption" color={colors.textSecondary}>
-          Triggers can take a few days to show up, if they show up at all. Look for what happens in
-          the days after a marker, not just on it.
+          {buildOverlayCaption(config)}
         </AppText>
-        {hasMoodOrStress ? (
-          <AppText variant="caption" color={colors.textSecondary}>
-            Stress and severity share a 1–5 scale but measure different things.
-          </AppText>
-        ) : null}
       </View>
 
       <View style={styles.divider} />
@@ -189,5 +247,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  printWrap: {
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+  },
+  printLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  printLegendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
 });

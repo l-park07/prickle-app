@@ -100,6 +100,20 @@ function photosSection(photos: (WorstSeverityPhoto & { base64: string })[]): str
     </section>`;
 }
 
+export interface CustomChartSectionInput {
+  title: string;
+  /** A captured data-URI PNG, or null if that chart couldn't be captured (section is dropped,
+   *  same as the built-in charts). */
+  png: string | null;
+  /** buildOverlayCaption's output (OverlayCard.tsx) — the same delay-warning wording shown
+   *  on-screen. A chart in a doctor's hands especially must not lose that framing. */
+  caption: string;
+  /** Plain-language range label for the chart's OWN saved config (e.g. "Last 90 days", "All
+   *  time") — custom charts export using their own configured range, not the document's shared
+   *  one, since it's the user's own deliberately-built view. */
+  periodLabel: string;
+}
+
 export interface BuildSummaryHtmlInput {
   /** Firebase displayName, or null/empty to omit the name line gracefully. */
   userName: string | null;
@@ -116,13 +130,16 @@ export interface BuildSummaryHtmlInput {
   recapChartPng: string | null;
   recapRange: { from: string; to: string } | null;
   photos: (WorstSeverityPhoto & { base64: string })[];
+  /** User-created overlay charts the reviewer chose to include — see ExportReviewSheet.tsx. */
+  customCharts: CustomChartSectionInput[];
 }
 
 /** Builds the full standalone HTML document expo-print renders to PDF. Warm/plain-spoken tone
  *  throughout, matching the rest of the app — this is a record of what was logged, not a
  *  diagnosis or a verdict. */
 export function buildSummaryHtml(input: BuildSummaryHtmlInput): string {
-  const { userName, from, to, medications, severityChartPng, poemChartPng, poemRange, recapChartPng, recapRange, photos } = input;
+  const { userName, from, to, medications, severityChartPng, poemChartPng, poemRange, recapChartPng, recapRange, photos, customCharts } =
+    input;
   const periodLabel = (span: { from: string; to: string } | null) =>
     span ? `${formatFullDate(span.from)} – ${formatFullDate(span.to)}` : null;
 
@@ -231,6 +248,9 @@ export function buildSummaryHtml(input: BuildSummaryHtmlInput): string {
     description: RECAP.subtitle,
     copyright: RECAP.copyright,
   })}
+  ${customCharts
+    .map((c) => chartSection({ title: c.title, png: c.png, period: c.periodLabel, description: c.caption }))
+    .join('\n  ')}
   ${photosSection(photos)}
 </body>
 </html>`;

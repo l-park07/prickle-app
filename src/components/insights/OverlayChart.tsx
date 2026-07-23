@@ -100,9 +100,14 @@ export function OverlayChart({ title, bucketDates, bucketGranularity, lineSeries
     );
   };
 
-  const hasEnoughData = hasEnoughBucketData(lineSeries.map((s) => s.buckets));
+  const hasLines = lineSeries.length > 0;
+  const hasEnoughLineData = hasEnoughBucketData(lineSeries.map((s) => s.buckets));
+  // An enabled event series is worth showing even with a lane full of zero ticks (that absence is
+  // itself informative) — so a chart with no lines but a real trigger/medication selection still
+  // renders its lanes/bands instead of bailing out just because there's nothing to plot as a line.
+  const hasEventData = eventSeries.length > 0;
 
-  if (!hasEnoughData) {
+  if (hasLines ? !hasEnoughLineData : !hasEventData) {
     return (
       <AppText variant="caption" color={colors.textSecondary} style={styles.emptyNote}>
         Not enough logged days yet to show this. It'll fill in as you go.
@@ -113,14 +118,16 @@ export function OverlayChart({ title, bucketDates, bucketGranularity, lineSeries
   const lineNames = lineSeries.map((s) => s.label).join(', ');
   const eventNames = eventSeries.map((s) => s.label).join(', ');
   const dateRangeLabel = `${formatBucketDate(bucketDates[0], bucketGranularity)} to ${formatBucketDate(bucketDates[bucketDates.length - 1], bucketGranularity)}`;
-  const summary = `${title}: ${lineNames}, ${dateRangeLabel}${eventNames ? `, with ${eventNames} markers` : ''}.`;
+  const summary = hasLines
+    ? `${title}: ${lineNames}, ${dateRangeLabel}${eventNames ? `, with ${eventNames} markers` : ''}.`
+    : `${title}: ${eventNames} markers, ${dateRangeLabel}.`;
 
   return (
     <View style={styles.chartMargin}>
-      <View onLayout={handleLayout} accessible accessibilityLabel={summary}>
+      <View onLayout={handleLayout} accessible accessibilityRole="image" accessibilityLabel={summary}>
         {containerWidth > 0 ? (
           <>
-            <View style={styles.chartArea}>
+            <View style={[styles.chartArea, !hasLines ? styles.chartAreaNoLines : null]}>
               <EventBackgroundBands
                 bucketDates={bucketDates}
                 spacingPx={spacingPx}
@@ -128,6 +135,8 @@ export function OverlayChart({ title, bucketDates, bucketGranularity, lineSeries
                 series={eventSeries}
                 plotHeight={CHART_HEIGHT}
               />
+              {hasLines ? (
+              <>
               <LineChart
                 data={lineSeries[0] ? toLineData(lineSeries[0], true) : []}
                 data2={lineSeries[1] ? toLineData(lineSeries[1], false) : undefined}
@@ -210,6 +219,8 @@ export function OverlayChart({ title, bucketDates, bucketGranularity, lineSeries
                   );
                 })
               )}
+              </>
+              ) : null}
             </View>
             <EventLanes bucketDates={bucketDates} spacingPx={spacingPx} leadingWidth={LEADING_WIDTH} series={eventSeries} />
           </>
@@ -229,6 +240,12 @@ const styles = StyleSheet.create({
   },
   chartArea: {
     position: 'relative',
+  },
+  // Without a LineChart contributing natural height, chartArea would collapse to ~0 (its only
+  // other children — EventBackgroundBands — are position:absolute, so they don't affect layout
+  // height) and the bands would have nothing to visibly span.
+  chartAreaNoLines: {
+    minHeight: CHART_HEIGHT,
   },
   yAxisTick: {
     position: 'absolute',

@@ -9,7 +9,9 @@ import { useAuth } from '../../context/AuthProvider';
 import { useActiveUserId } from '../../hooks/useActiveUserId';
 import { todayISO } from '../../lib/calendarMath';
 import {
+  getActiveMedications,
   getActiveSites,
+  getActiveTriggers,
   getEarliestLogDate,
   getMedicationHistory,
   getPoemSeries,
@@ -19,17 +21,28 @@ import {
 } from '../../lib/chartSelectors';
 import { db } from '../../lib/db';
 import { buildExportCsv } from '../../lib/exportData';
-import { buildSummaryHtml } from '../../lib/exportSummary';
+import { buildSummaryHtml, type CustomChartSectionInput } from '../../lib/exportSummary';
+import { listCustomCharts, type CustomChart, type CustomChartConfig } from '../../lib/manageCustomCharts';
 import { AppText } from '../AppText';
 import { Card } from '../Card';
 import { PrimaryButton } from '../PrimaryButton';
 import { assignSiteColors } from './chartTheme';
+import { ExportReviewSheet } from './ExportReviewSheet';
 import { ExportSummaryCaptureRig } from './ExportSummaryCaptureRig';
+import { buildOverlayCaption, OverlayCard } from './OverlayCard';
 import { PoemTrendChart } from './PoemTrendChart';
 import { RecapTrendChart } from './RecapTrendChart';
 import { rangeFromPreset, type RangePreset } from './RangeAndGranularityControls';
 import { SeverityOverTimeChart } from './SeverityOverTimeChart';
 import { TimeRangeControl } from './TimeRangeControl';
+
+const RANGE_LABELS: Record<CustomChartConfig['range'], string> = {
+  '30d': 'Last 30 days',
+  '90d': 'Last 90 days',
+  '6mo': 'Last 6 months',
+  '1yr': 'Last year',
+  all: 'All time',
+};
 
 /** Reads a photo file and returns it base64-encoded, or null if the file is missing/unreadable
  *  (e.g. moved off-device) — that site's photo is then dropped rather than failing the whole PDF. */
@@ -54,6 +67,8 @@ function seriesSpan(series: { weekStart: string }[]): { from: string; to: string
  * Bottom-of-Insights export card: one shared date range, two on-device outputs — a "Share summary
  * (PDF)" one-document overview (built from the real Insights charts, see ExportSummaryCaptureRig)
  * and a "Download CSV" raw data export (see exportData.ts). Nothing here ever touches the network.
+ * Both outputs go through ExportReviewSheet first — permanent charts are always included, each
+ * custom chart is pre-checked from its own includeInExport flag but adjustable for that export only.
  */
 export function ExportSection() {
   const activeUserId = useActiveUserId();
@@ -70,7 +85,14 @@ export function ExportSection() {
   // new children — its capture effect (empty deps, fires once per mount) then never runs again,
   // so the promise for every chart after the first never resolves and the whole export hangs.
   const captureKeyRef = useRef(0);
-  const busy = buildingPdf || exportingCsv;
+
+  // Review step: pressing either button first snapshots the current custom-chart list and opens
+  // ExportReviewSheet; pendingExport remembers which pipeline Continue should actually run.
+  const [pendingExport, setPendingExport] = useState<'pdf' | 'csv' | null>(null);
+  const [reviewCharts, setReviewCharts] = useState<CustomChart[]>([]);
+  const [reviewVisible, setReviewVisible] = useState(false);
+
+  const busy = buildingPdf || exportingCsv || reviewVisible;
   // The PDF path is genuinely slow now — it captures three charts off-screen one at a time (see
   // ExportSummaryCaptureRig), each with its own settle delay, before it even starts rendering the
   // PDF — so the button's own bare spinner alone reads as stuck/broken. This status line is the
@@ -87,10 +109,10 @@ export function ExportSection() {
     captureResolverRef.current = null;
   };
 
-  // Captures exactly one chart at a time — mounting Severity/POEM/RECAP off-screen simultaneously
-  // let their concurrent data-fetch/layout passes interfere with each other (charts intermittently
-  // came out blank or as a duplicate of a different chart). Awaiting one captureChart call at a
-  // time from handleSharePdf below guarantees only one is ever mounted in the rig at once.
+  // Captures exactly one chart at a time — mounting several off-screen simultaneously let their
+  // concurrent data-fetch/layout passes interfere with each other (charts intermittently came out
+  // blank or as a duplicate of a different chart). Awaiting one captureChart call at a time from
+  // the handlers below guarantees only one is ever mounted in the rig at once.
   const captureChart = (node: ReactNode): Promise<string | null> => {
     captureKeyRef.current += 1;
     return new Promise((resolve) => {
@@ -99,8 +121,28 @@ export function ExportSection() {
     });
   };
 
-  const handleSharePdf = async () => {
+  /** Opens the review sheet with a fresh snapshot of the user's custom charts — fetched at press
+   *  time (not kept as persistent state) so it always reflects the very latest list/flags. */
+  const handlePressExport = async (kind: 'pdf' | 'csv') => {
     if (!activeUserId || busy) return;
+    const [sites, triggers, medications] = await Promise.all([
+      getActiveSites(db, activeUserId),
+      getActiveTriggers(db, activeUserId),
+      getActiveMedications(db, activeUserId),
+    ]);
+    const liveIds = {
+      siteIds: new Set(sites.map((s) => s.id)),
+      triggerIds: new Set(triggers.map((t) => t.id)),
+      medicationIds: new Set(medications.map((m) => m.id)),
+    };
+    const charts = await listCustomCharts(db, activeUserId, liveIds);
+    setReviewCharts(charts);
+    setPendingExport(kind);
+    setReviewVisible(true);
+  };
+
+  const handleSharePdf = async (includedCharts: CustomChart[]) => {
+    if (!activeUserId) return;
     setBuildingPdf(true);
     try {
       const today = todayISO();
@@ -122,6 +164,20 @@ export function ExportSection() {
       const poemChartPng = await captureChart(<PoemTrendChart data={poemSeries} printMode />);
       const recapChartPng = await captureChart(<RecapTrendChart data={recapSeries} printMode />);
 
+      // Each custom chart captures using its OWN saved range/config, not the document's shared
+      // preset — it's the user's own deliberately-built view, not something this export flow
+      // should silently reinterpret.
+      const customCharts: CustomChartSectionInput[] = [];
+      for (const chart of includedCharts) {
+        const png = await captureChart(<OverlayCard chart={chart} printMode />);
+        customCharts.push({
+          title: chart.title,
+          png,
+          caption: buildOverlayCaption(chart.config),
+          periodLabel: RANGE_LABELS[chart.config.range],
+        });
+      }
+
       const photos = (await Promise.all(worstPhotos.map(readPhotoBase64))).filter(
         (p): p is WorstSeverityPhoto & { base64: string } => p !== null
       );
@@ -137,6 +193,7 @@ export function ExportSection() {
         recapChartPng,
         recapRange: seriesSpan(recapSeries),
         photos,
+        customCharts,
       });
 
       const { uri } = await Print.printToFileAsync({ html });
@@ -160,12 +217,19 @@ export function ExportSection() {
     }
   };
 
-  const handleDownloadCsv = async () => {
-    if (!activeUserId || busy) return;
+  const handleDownloadCsv = async (includedCharts: CustomChart[]) => {
+    if (!activeUserId) return;
     setExportingCsv(true);
     try {
       const { from, to } = rangeFromPreset(preset, todayISO());
-      const { csv, filename } = await buildExportCsv(db, activeUserId, from, to);
+      // Scoped to the union of what the included custom charts actually reference (membership,
+      // not current enabled state — a temporarily-disabled row is still part of what this chart
+      // tracks). Sites and Stress/Mood stay unconditional regardless — see buildExportCsv.
+      const seriesIdsOfKind = (kind: 'trigger' | 'medication') =>
+        includedCharts.flatMap((c) => c.config.series.filter((s): s is Extract<CustomChartConfig['series'][number], { kind: typeof kind }> => s.kind === kind).map((s) => s.id));
+      const triggerIds = [...new Set(seriesIdsOfKind('trigger'))];
+      const medicationIds = [...new Set(seriesIdsOfKind('medication'))];
+      const { csv, filename } = await buildExportCsv(db, activeUserId, from, to, { triggerIds, medicationIds });
 
       const file = new File(Paths.document, filename);
       file.write(csv);
@@ -187,13 +251,32 @@ export function ExportSection() {
     }
   };
 
+  const handleReviewContinue = (includedIds: Set<string>) => {
+    setReviewVisible(false);
+    const kind = pendingExport;
+    setPendingExport(null);
+    const includedCharts = reviewCharts.filter((c) => includedIds.has(c.id));
+    if (kind === 'pdf') handleSharePdf(includedCharts);
+    else if (kind === 'csv') handleDownloadCsv(includedCharts);
+  };
+
   return (
     <Card style={styles.card}>
       <AppText variant="title">Export your data</AppText>
       <TimeRangeControl value={preset} onChange={setPreset} />
       <View style={styles.buttonStack}>
-        <PrimaryButton label="Share summary (PDF)" onPress={handleSharePdf} loading={buildingPdf} disabled={!activeUserId || busy} />
-        <PrimaryButton label="Download CSV" onPress={handleDownloadCsv} loading={exportingCsv} disabled={!activeUserId || busy} />
+        <PrimaryButton
+          label="Share summary (PDF)"
+          onPress={() => handlePressExport('pdf')}
+          loading={buildingPdf}
+          disabled={!activeUserId || busy}
+        />
+        <PrimaryButton
+          label="Download CSV"
+          onPress={() => handlePressExport('csv')}
+          loading={exportingCsv}
+          disabled={!activeUserId || busy}
+        />
       </View>
       {statusMessage ? (
         <View style={styles.statusRow} accessibilityLiveRegion="polite">
@@ -215,6 +298,15 @@ export function ExportSection() {
           {captureNode}
         </ExportSummaryCaptureRig>
       ) : null}
+      <ExportReviewSheet
+        visible={reviewVisible}
+        customCharts={reviewCharts}
+        onClose={() => {
+          setReviewVisible(false);
+          setPendingExport(null);
+        }}
+        onContinue={handleReviewContinue}
+      />
     </Card>
   );
 }
